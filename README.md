@@ -144,8 +144,10 @@ El frontend corre en **http://localhost:3000**
 ---
 
 ## 👥 Autores
+
 - Wendy Atehortua
 - Isabella Ocampo
 - Isabella Cadavid
-- Maria Laura Tafur 
+- Maria Laura Tafur
+  
 Proyecto desarrollado para la materia **Ingeniería de Software** — EAFIT · 2026
