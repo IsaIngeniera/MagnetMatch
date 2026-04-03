@@ -140,20 +140,6 @@ Abre pgAdmin (o psql) y ejecuta:
 ```sql
 CREATE DATABASE magneto_db;
 
-CREATE TABLE candidatos (
-  id SERIAL PRIMARY KEY,
-  nombre VARCHAR(100),
-  email VARCHAR(100) UNIQUE,
-  password VARCHAR(255),
-  habilidades TEXT
-);
-
-CREATE TABLE vacantes (
-  id SERIAL PRIMARY KEY,
-  titulo VARCHAR(100),
-  descripcion TEXT,
-  habilidades_requeridas TEXT
-);
 ```
 
 ---
