@@ -1,43 +1,78 @@
-const pool = require('../config/db');
+const { Aspirante } = require('../models'); 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const admin = require('../config/firebase'); 
 require('dotenv').config();
 
 const register = async (req, res) => {
-  const { nombre, email, password, habilidades } = req.body;
-
   try {
+    const { nombres, apellidos, email, password, firebase_uid } = req.body;
+
+    // Validación rápida para evitar esperas innecesarias
+    if (!email || !password || !firebase_uid) {
+      return res.status(400).json({ success: false, mensaje: 'Faltan datos obligatorios' });
+    }
+
+    const existe = await Aspirante.findOne({ where: { email } });
+    if (existe) {
+      return res.status(400).json({ success: false, mensaje: 'El email ya está registrado' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      'INSERT INTO candidatos (nombre, email, password, habilidades) VALUES ($1, $2, $3, $4) RETURNING *',
-      [nombre, email, hashedPassword, habilidades]
-    );
-    res.json({ mensaje: 'Candidato registrado!', candidato: result.rows[0] });
+    const nuevoAspirante = await Aspirante.create({
+      ...req.body,
+      password: hashedPassword,
+      fecha_registro: new Date()
+    });
+
+    // Siempre retornar una respuesta
+    return res.status(201).json({ 
+      success: true,
+      mensaje: '¡Aspirante registrado con éxito!', 
+      candidato: nuevoAspirante 
+    });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error en el registro:', error);
+    // Si hay error, hay que avisar al frontend para que deje de cargar
+    return res.status(500).json({ success: false, mensaje: 'Error interno', error: error.message });
   }
 };
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
-
   try {
-    const result = await pool.query('SELECT * FROM candidatos WHERE email = $1', [email]);
-    const candidato = result.rows[0];
+    const { email, password, token } = req.body;
 
-    if (!candidato) return res.status(404).json({ error: 'Candidato no encontrado' });
+    if (!email && !token) {
+      return res.status(400).json({ success: false, error: 'Email o Token requerido' });
+    }
 
-    const passwordValida = await bcrypt.compare(password, candidato.password);
-    if (!passwordValida) return res.status(401).json({ error: 'Contraseña incorrecta' });
+    let usuario;
 
-    const token = jwt.sign(
-  { id: candidato.id, email: candidato.email, habilidades: candidato.habilidades },
-  process.env.JWT_SECRET
-);
-res.json({ mensaje: 'Login exitoso!', token });
-} catch (error) {
-res.status(500).json({ error: error.message });
-}
+    if (token) {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      usuario = await Aspirante.findOne({ where: { firebase_uid: decodedToken.uid } });
+    } else {
+      usuario = await Aspirante.findOne({ where: { email } });
+      if (usuario && password) {
+        const esValida = await bcrypt.compare(password, usuario.password);
+        if (!esValida) usuario = null;
+      }
+    }
+
+    if (!usuario) {
+      return res.status(401).json({ success: false, error: 'Credenciales inválidas' });
+    }
+
+    return res.json({
+      success: true,
+      usuario: { id: usuario.id_aspirante, nombre: usuario.nombres, email: usuario.email }
+    });
+
+  } catch (error) {
+    console.error("Error en login:", error);
+    return res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
 };
 
 module.exports = { register, login };
