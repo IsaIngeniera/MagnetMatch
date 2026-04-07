@@ -1,25 +1,26 @@
-#  MagnetMatch MVP
+# 🧲 MagnetMatch MVP
 
 Portal web que mejora la experiencia de registro de candidatos y los conecta con vacantes laborales mediante un motor de recomendación basado en habilidades.
 
 ---
 
-##  Descripción del Proyecto
+## 📌 Descripción del Proyecto
 
 MagnetMatch resuelve el problema del abandono en formularios de registro largos y repetitivos. El sistema guía al candidato paso a paso, guarda su perfil en una base de datos y utiliza un motor de recomendación para mostrarle las vacantes que mejor se ajustan a sus habilidades.
 
 **Flujo principal:**
+
 ```
 Registro → Login → Dashboard de vacantes recomendadas
 ```
 
 ---
 
-## Tecnologías Usadas
+## 🛠️ Tecnologías Usadas
 
 | Capa | Tecnología |
-|------|-----------|
-| Frontend | Next.js  + TypeScript |
+|------|------------|
+| Frontend | Next.js + TypeScript |
 | Backend | Node.js + Express |
 | Base de datos | PostgreSQL |
 | Autenticación | JWT + bcryptjs |
@@ -35,28 +36,76 @@ MVP/
 ├── backend/
 │   ├── src/
 │   │   ├── config/
-│   │   │   └── db.js              # Conexión a PostgreSQL
+│   │   │   ├── database.js                    # Conexión a PostgreSQL (Sequelize)
+│   │   │   └── firebase.js                    # Configuración de Firebase Storage
+│   │   │
 │   │   ├── controllers/
-│   │   │   ├── authController.js  # Lógica de registro y login
-│   │   │   └── vacantesController.js # Lógica de vacantes y recomendación
+│   │   │   ├── aspirante.controller.js        # CRUD del perfil del aspirante
+│   │   │   ├── authController.js              # Registro y login
+│   │   │   ├── educacion.controller.js        # Gestión de educación
+│   │   │   ├── experiencia.controller.js      # Gestión de experiencia laboral
+│   │   │   ├── habilidad.controller.js        # Gestión de habilidades
+│   │   │   ├── logro.controller.js            # Gestión de logros
+│   │   │   ├── match.controller.js            # Motor de recomendación / match
+│   │   │   └── vacante.controller.js          # Gestión de vacantes
+│   │   │
 │   │   ├── middleware/
-│   │   │   └── authMiddleware.js  # Verificación de JWT
-│   │   └── routes/
-│   │       ├── authRoutes.js      # Rutas de autenticación
-│   │       └── vacantesRoutes.js  # Rutas de vacantes
-│   ├── .env                       # Variables de entorno (no subir a GitHub)
-│   ├── index.js                   # Servidor principal
-│   └── package.json
+│   │   │   ├── authMiddleware.js              # Verificación de JWT
+│   │   │   └── uploadMiddleware.js            # Manejo de subida de archivos
+│   │   │
+│   │   ├── models/
+│   │   │   ├── Aspirante.js                   # Modelo del candidato
+│   │   │   ├── AspiranteHabilidad.js          # Relación aspirante ↔ habilidad
+│   │   │   ├── Educacion.js                   # Modelo de educación
+│   │   │   ├── Empresa.js                     # Modelo de empresa
+│   │   │   ├── Experiencia.js                 # Modelo de experiencia laboral
+│   │   │   ├── Habilidad.js                   # Modelo de habilidades
+│   │   │   ├── Logro.js                       # Modelo de logros
+│   │   │   ├── MatchRecomendacion.js          # Modelo del match candidato-vacante
+│   │   │   ├── Mensaje.js                     # Modelo de mensajes
+│   │   │   ├── Vacante.js                     # Modelo de vacante
+│   │   │   ├── VacanteHabilidad.js            # Relación vacante ↔ habilidad
+│   │   │   └── index.js                       # Asociaciones entre modelos
+│   │   │
+│   │   ├── routes/
+│   │   │   ├── aspirante.routes.js            # Rutas del aspirante
+│   │   │   ├── authRoutes.js                  # Rutas de autenticación
+│   │   │   ├── habilidad.routes.js            # Rutas de habilidades
+│   │   │   ├── vacante.routes.js              # Rutas de vacantes
+│   │   │   └── index.js                       # Enrutador principal
+│   │   │
+│   │   ├── scripts/
+│   │   │   ├── seedDatabase.js                # Poblar BD con datos de prueba
+│   │   │   └── syncDatabase.js                # Sincronizar modelos con PostgreSQL
+│   │   │
+│   │   └── services/
+│   │       ├── profile.service.js             # Lógica de completitud del perfil
+│   │       └── recommendation.service.js      # Algoritmo de recomendación
+│   │
+│   ├── uploads/                               # Archivos subidos (CVs, imágenes)
+│   ├── .env                                   # Variables de entorno (no subir a GitHub)
+│   ├── server.js                              # Servidor principal
+│   ├── serviceAccountKey.json                 # Credenciales Firebase (no subir a GitHub)
+│   ├── package.json
+│   └── package-lock.json
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx               # Página de bienvenida
+│   │   ├── page.tsx                           # Página de bienvenida
 │   │   ├── login/
-│   │   │   └── page.tsx           # Página de login
+│   │   │   └── page.tsx                       # Página de login
 │   │   ├── register/
-│   │   │   └── page.tsx           # Página de registro
+│   │   │   └── page.tsx                       # Página de registro
 │   │   └── vacantes/
-│   │       └── page.tsx           # Dashboard de vacantes
+│   │       ├── layout.tsx                     # Layout con sidebar + header bar
+│   │       ├── inicio/
+│   │       │   └── page.tsx                   # Dashboard con vacantes recomendadas
+│   │       ├── postulaciones/
+│   │       │   └── page.tsx                   # Tablero Kanban de postulaciones
+│   │       ├── perfil/
+│   │       │   └── page.tsx                   # Perfil del candidato
+│   │       └── mensajes/
+│   │           └── page.tsx                   # Bandeja de mensajes
 │   └── package.json
 │
 ├── .gitignore
@@ -65,48 +114,46 @@ MVP/
 
 ---
 
-## 🚀 Cómo Instalar y Correr el Proyecto
+## 🚀 Pasos de Ejecución
 
 ### Requisitos previos
+
 - Node.js instalado
 - PostgreSQL instalado y corriendo
-- pgAdmin 4 (opcional)
+- pgAdmin 4 (opcional, para gestión visual de la BD)
 
-### 1. Clonar el repositorio
+---
+
+### Paso 1 — Clonar el repositorio
+
 ```bash
 git clone https://github.com/tu-usuario/magneto-mvp.git
 cd magneto-mvp
 ```
 
-### 2. Configurar la base de datos
-Abre pgAdmin y ejecuta:
+---
+
+### Paso 2 — Configurar la base de datos
+
+Abre pgAdmin (o psql) y ejecuta:
+
 ```sql
 CREATE DATABASE magneto_db;
 
-CREATE TABLE candidatos (
-  id SERIAL PRIMARY KEY,
-  nombre VARCHAR(100),
-  email VARCHAR(100) UNIQUE,
-  password VARCHAR(255),
-  habilidades TEXT
-);
-
-CREATE TABLE vacantes (
-  id SERIAL PRIMARY KEY,
-  titulo VARCHAR(100),
-  descripcion TEXT,
-  habilidades_requeridas TEXT
-);
 ```
 
-### 3. Configurar el Backend
+---
+
+### Paso 3 — Configurar y correr el Backend
+
 ```bash
 cd backend
 npm install
 ```
 
-Crea el archivo `.env` con:
-```
+Crea el archivo `.env` en la raíz de `/backend` con las siguientes variables:
+
+```env
 PORT=4000
 JWT_SECRET=magnetSecrtK
 DB_HOST=localhost
@@ -116,19 +163,39 @@ DB_PASSWORD=tu_contraseña
 DB_NAME=magneto_db
 ```
 
-Corre el servidor:
+Inicia el servidor:
+
 ```bash
 node index.js
 ```
-El backend corre en **http://localhost:4000**
 
-### 4. Configurar el Frontend
+> ✅ El backend quedará corriendo en **http://localhost:4000**
+
+---
+
+### Paso 4 — Configurar y correr el Frontend
+
+Abre una **nueva terminal** y ejecuta:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-El frontend corre en **http://localhost:3000**
+
+> ✅ El frontend quedará corriendo en **http://localhost:3000**
+
+---
+
+### Paso 5 — Abrir la aplicación
+
+Abre tu navegador y entra a:
+
+```
+http://localhost:3000
+```
+
+Desde ahí puedes registrarte, iniciar sesión y explorar el dashboard de vacantes recomendadas.
 
 ---
 
@@ -138,8 +205,9 @@ El frontend corre en **http://localhost:3000**
 |--------|------|-------------|
 | POST | `/api/auth/register` | Registrar candidato |
 | POST | `/api/auth/login` | Iniciar sesión |
-| GET | `/api/vacantes` | Obtener todas las vacantes |
-| GET | `/api/vacantes/recomendadas` | Vacantes recomendadas (requiere JWT) |
+| GET | `/api/aspirantes/perfil/me` | Perfil del candidato autenticado |
+| GET | `/api/aspirantes/me/postulaciones` | Postulaciones del candidato |
+| GET | `/api/aspirantes/me/mensajes` | Mensajes del candidato |
 
 ---
 
@@ -149,5 +217,5 @@ El frontend corre en **http://localhost:3000**
 - Isabella Ocampo
 - Isabella Cadavid
 - Maria Laura Tafur
-  
+
 Proyecto desarrollado para la materia **Ingeniería de Software** — EAFIT · 2026
