@@ -11,7 +11,10 @@ import axios from 'axios';
 // --- INTERFACES (alineadas con modelos Sequelize) ---
 
 // Habilidad.js → id_habilidad, nombre, categoria
-interface Habilidad { id_habilidad: number; nombre: string; categoria: string; }
+interface Habilidad { id_habilidad: number; nombre: string; categoria: string; nivel?: string; anios_experiencia?: number; }
+
+// Habilidad seleccionada con nivel y años de experiencia
+interface HabilidadSeleccionada { id_habilidad: number; nivel: string; anios_experiencia: number; }
 
 // Experiencia.js → id_experiencia, id_aspirante, cargo, empresa, fecha_inicio, fecha_fin?, descripcion_logros?
 interface Experiencia { id_experiencia: number; empresa: string; cargo: string; fecha_inicio: string; fecha_fin?: string; descripcion_logros?: string; }
@@ -55,7 +58,11 @@ export default function PerfilPage() {
   const [formDatos, setFormDatos] = useState({
     nombres: '', apellidos: '', telefono: '', expectativa_salarial: '', modalidad_preferida: 'remoto' as Modalidad
   });
-  const [habilidadesSeleccionadas, setHabilidadesSeleccionadas] = useState<number[]>([]);
+  const [habilidadesSeleccionadas, setHabilidadesSeleccionadas] = useState<HabilidadSeleccionada[]>([]);
+
+  // Modal de habilidad: pedir nivel y años al hacer click
+  const [modalHabilidad, setModalHabilidad] = useState<Habilidad | null>(null);
+  const [formHabilidad, setFormHabilidad] = useState({ nivel: 'básico', anios_experiencia: 0 });
 
   // Formularios de secciones
   const [newExp, setNewExp] = useState({ empresa: '', cargo: '', fecha_inicio: '', fecha_fin: '', descripcion_logros: '' });
@@ -77,7 +84,11 @@ export default function PerfilPage() {
         expectativa_salarial: data.expectativa_salarial?.toString() || '',
         modalidad_preferida: data.modalidad_preferida || 'remoto'
       });
-      setHabilidadesSeleccionadas(data.habilidades?.map((h: Habilidad) => h.id_habilidad) || []);
+      setHabilidadesSeleccionadas(data.habilidades?.map((h: Habilidad) => ({
+        id_habilidad: h.id_habilidad,
+        nivel: h.nivel || 'básico',
+        anios_experiencia: h.anios_experiencia ?? 0
+      })) || []);
 
       if (data.id_aspirante) {
         const [rExp, rEdu, rLog] = await Promise.all([
@@ -116,16 +127,22 @@ export default function PerfilPage() {
       await axios.put(`${API_URL}/api/aspirantes/perfil/me`, bodyDatos, config);
 
       const existingIds = aspirante?.habilidades?.map((h: Habilidad) => h.id_habilidad) || [];
-      const toAdd = habilidadesSeleccionadas.filter(id => !existingIds.includes(id));
-      const toRemove = existingIds.filter((id: number) => !habilidadesSeleccionadas.includes(id));
+      const toAdd = habilidadesSeleccionadas.filter(hs => !existingIds.includes(hs.id_habilidad));
+      const toRemove = existingIds.filter((id: number) => !habilidadesSeleccionadas.find(hs => hs.id_habilidad === id));
+      const toUpdate = habilidadesSeleccionadas.filter(hs => existingIds.includes(hs.id_habilidad));
 
-      for (const id_hab of toAdd) {
+      for (const hs of toAdd) {
         await axios.post(`${API_URL}/api/aspirantes/${aspirante?.id_aspirante}/habilidades`, {
-          id_habilidad: id_hab, nivel: 'básico', anios_experiencia: 0
+          id_habilidad: hs.id_habilidad, nivel: hs.nivel, anios_experiencia: hs.anios_experiencia
         }, config).catch(e => console.error(e));
       }
       for (const id_hab of toRemove) {
         await axios.delete(`${API_URL}/api/aspirantes/${aspirante?.id_aspirante}/habilidades/${id_hab}`, config).catch(e => console.error(e));
+      }
+      for (const hs of toUpdate) {
+        await axios.put(`${API_URL}/api/aspirantes/${aspirante?.id_aspirante}/habilidades/${hs.id_habilidad}`, {
+          nivel: hs.nivel, anios_experiencia: hs.anios_experiencia
+        }, config).catch(e => console.error(e));
       }
 
       setMensaje('✅ Perfil guardado con éxito');
@@ -227,7 +244,14 @@ export default function PerfilPage() {
                         <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">{cat}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {habs.map(h => (
-                            <span key={h.id_habilidad} className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase">{h.nombre}</span>
+                            <div key={h.id_habilidad} className="flex flex-col items-start px-3 py-1.5 bg-slate-100 rounded-lg gap-0.5">
+                              <span className="text-[10px] font-bold uppercase text-slate-600">{h.nombre}</span>
+                              {(h.nivel || h.anios_experiencia !== undefined) && (
+                                <span className="text-[9px] font-semibold text-slate-400 uppercase">
+                                  {h.nivel}{h.anios_experiencia !== undefined ? ` · ${h.anios_experiencia} año${h.anios_experiencia === 1 ? '' : 's'}` : ''}
+                                </span>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -344,15 +368,30 @@ export default function PerfilPage() {
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Mis Habilidades (Click para añadir/quitar)</label>
                     <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100 max-h-40 overflow-y-auto">
-                      {catalogoHabilidades.map(h => (
-                        <button
-                          key={h.id_habilidad}
-                          onClick={() => setHabilidadesSeleccionadas(prev => prev.includes(h.id_habilidad) ? prev.filter(id => id !== h.id_habilidad) : [...prev, h.id_habilidad])}
-                          className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition ${habilidadesSeleccionadas.includes(h.id_habilidad) ? 'bg-green-500 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
-                        >
-                          {h.nombre}
-                        </button>
-                      ))}
+                      {catalogoHabilidades.map(h => {
+                        const seleccionada = habilidadesSeleccionadas.find(hs => hs.id_habilidad === h.id_habilidad);
+                        return (
+                          <button
+                            key={h.id_habilidad}
+                            onClick={() => {
+                              if (seleccionada) {
+                                setHabilidadesSeleccionadas(prev => prev.filter(hs => hs.id_habilidad !== h.id_habilidad));
+                              } else {
+                                setModalHabilidad(h);
+                                setFormHabilidad({ nivel: 'básico', anios_experiencia: 0 });
+                              }
+                            }}
+                            className={`flex flex-col items-start px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition ${seleccionada ? 'bg-green-500 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
+                          >
+                            <span>{h.nombre}</span>
+                            {seleccionada && (
+                              <span className="text-[9px] font-semibold opacity-80 normal-case">
+                                {seleccionada.nivel} · {seleccionada.anios_experiencia} año{seleccionada.anios_experiencia === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -416,6 +455,65 @@ export default function PerfilPage() {
               )}
 
               {mensaje && <p className={`text-center text-xs font-bold ${mensaje.includes('✅') ? 'text-green-600' : 'text-red-500'}`}>{mensaje}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- MODAL POPUP HABILIDAD --- */}
+      {modalHabilidad && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 space-y-5">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-black text-slate-800 uppercase">{modalHabilidad.nombre}</h3>
+              <button onClick={() => setModalHabilidad(null)} className="p-1 hover:bg-slate-100 rounded-full transition"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nivel</label>
+              <select
+                value={formHabilidad.nivel}
+                onChange={e => setFormHabilidad(f => ({ ...f, nivel: e.target.value }))}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-green-400 outline-none transition font-bold text-sm text-slate-900"
+              >
+                <option value="básico">Básico</option>
+                <option value="intermedio">Intermedio</option>
+                <option value="avanzado">Avanzado</option>
+                <option value="experto">Experto</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Años de experiencia</label>
+              <input
+                type="number"
+                min={0}
+                value={formHabilidad.anios_experiencia}
+                onChange={e => setFormHabilidad(f => ({ ...f, anios_experiencia: Math.max(0, parseInt(e.target.value) || 0) }))}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-green-400 outline-none transition font-bold text-sm text-slate-900"
+                placeholder="Ej: 2"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setModalHabilidad(null)}
+                className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-500 font-bold text-xs uppercase hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setHabilidadesSeleccionadas(prev => [...prev, {
+                    id_habilidad: modalHabilidad.id_habilidad,
+                    nivel: formHabilidad.nivel,
+                    anios_experiencia: formHabilidad.anios_experiencia
+                  }]);
+                  setModalHabilidad(null);
+                }}
+                className="flex-1 py-3 rounded-xl bg-green-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-green-600 transition"
+              >
+                <Plus size={14} /> Añadir
+              </button>
             </div>
           </div>
         </div>

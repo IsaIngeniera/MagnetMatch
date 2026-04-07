@@ -1,5 +1,5 @@
-const { Aspirante, Experiencia, Educacion, AspiranteHabilidad, Logro } = require('../models');
 
+const { Aspirante, Experiencia, Educacion, AspiranteHabilidad, Logro, Habilidad } = require('../models');
 /**
  * Calculate profile completeness percentage
  * @param {number} idAspirante 
@@ -10,7 +10,12 @@ const calculateProfileCompleteness = async (idAspirante) => {
     include: [
       { model: Experiencia, as: 'experiencias' },
       { model: Educacion, as: 'educaciones' },
-      { model: Logro, as: 'logros' }
+      { model: Logro, as: 'logros' }, // <-- Agregada la coma que faltaba aquí
+      {
+        model: Habilidad,
+        as: 'habilidades',
+        through: { attributes: ['nivel', 'anios_experiencia'] }
+      }
     ]
   });
 
@@ -18,17 +23,16 @@ const calculateProfileCompleteness = async (idAspirante) => {
     return { porcentaje: 0, detalles: {} };
   }
 
-  const habilidades = await AspiranteHabilidad.count({
-    where: { id_aspirante: idAspirante }
-  });
+  // Se eliminó la línea "const habilidades = await AspiranteHabilidad.count..." 
+  // porque ya no la necesitas, ahora usamos los datos cargados en el 'include' de arriba.
 
-  // Weights for each section
+  // Pesos de cada sección
   const WEIGHTS = {
-    datos_basicos: 20,    // nombres, apellidos, telefono, expectativa_salarial, modalidad_preferida
-    experiencia: 25,       // At least 1 experience
-    educacion: 25,         // At least 1 education
-    habilidades: 20,       // At least 3 skills
-    logros: 10             // At least 1 achievement
+    datos_basicos: 20,
+    experiencia: 25,
+    educacion: 25,
+    habilidades: 20,
+    logros: 10
   };
 
   const detalles = {
@@ -39,12 +43,22 @@ const calculateProfileCompleteness = async (idAspirante) => {
       aspirante.expectativa_salarial &&
       aspirante.modalidad_preferida
     ),
-    experiencia: aspirante.experiencias && aspirante.experiencias.length > 0,
-    educacion: aspirante.educaciones && aspirante.educaciones.length > 0,
-    habilidades: habilidades >= 3,
-    logros: aspirante.logros && aspirante.logros.length > 0
+    experiencia: !!(aspirante.experiencias && aspirante.experiencias.length > 0),
+    educacion: !!(aspirante.educaciones && aspirante.educaciones.length > 0),
+    
+    // Filtramos las habilidades que tengan nivel Y años de experiencia
+    habilidades: (aspirante.habilidades || []).filter(h => {
+  const data = h.AspiranteHabilidad;
+  return data && 
+         data.nivel !== null && 
+         data.nivel !== '' && // Que no esté vacío
+         data.anios_experiencia !== null;
+}).length >= 3,
+    
+    logros: !!(aspirante.logros && aspirante.logros.length > 0)
   };
 
+  // Cálculo del porcentaje sumando solo lo que es true
   let porcentaje = 0;
   if (detalles.datos_basicos) porcentaje += WEIGHTS.datos_basicos;
   if (detalles.experiencia) porcentaje += WEIGHTS.experiencia;
@@ -68,7 +82,8 @@ const updateProfileCompleteness = async (idAspirante) => {
     { where: { id_aspirante: idAspirante } }
   );
 
-  return porcentaje;
+  console.log("DEBUG COMPLETITUD:", detalles); // <--- ESTO EN TU CONSOLA DEL BACKEND
+return { porcentaje, detalles };
 };
 
 /**

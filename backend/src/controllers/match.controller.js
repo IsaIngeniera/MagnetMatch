@@ -13,34 +13,37 @@ const {
  * GET /api/aspirantes/:id/recomendaciones
  * HU-11: Obtener vacantes recomendadas para un aspirante
  * Soporta /me para el usuario autenticado
- */
-const getRecomendaciones = async (req, res) => {
+ */const getRecomendaciones = async (req, res) => {
   try {
-    const { id } = req.params;
+    const idParam = req.params.id;
     let idAspirante;
+    let aspirante; // La definimos aquí para usarla en todo el scope
 
-    // 1. Identificar Aspirante (Soporte para /me)
-    if (id === 'me') {
-      const asp = await Aspirante.findOne({ where: { firebase_uid: req.usuario.firebase_uid } });
-      if (!asp) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
-      idAspirante = asp.id_aspirante;
+    if (!idParam || idParam === 'me') {
+      aspirante = await Aspirante.findOne({ 
+        where: { firebase_uid: req.usuario.firebase_uid } 
+      });
+      
+      if (!aspirante) {
+        return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+      }
+      idAspirante = aspirante.id_aspirante;
     } else {
-      idAspirante = parseInt(id);
+      idAspirante = parseInt(idParam);
+      aspirante = await Aspirante.findByPk(idAspirante);
     }
 
-    if (isNaN(idAspirante)) return res.status(400).json({ success: false, error: 'ID inválido' });
-
-    const aspirante = await Aspirante.findByPk(idAspirante);
-    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
-
-    // 2. Parámetros de búsqueda
+    if (!idAspirante || isNaN(idAspirante)) {
+      return res.status(400).json({ success: false, error: 'ID de aspirante no identificado' });
+    }
+    
     const { limit = 10, refresh } = req.query;
     const limitNum = parseInt(limit);
     const shouldRefresh = refresh === 'true';
 
     let rawRecommendations;
 
-    // 3. Lógica de Caché vs Generación Fresh
+    // 1. Intentar buscar en Caché
     const cachedRecs = await MatchRecomendacion.findAll({
       where: { id_aspirante: idAspirante, estado_postulacion: 'pendiente' },
       include: [{
@@ -53,16 +56,11 @@ const getRecomendaciones = async (req, res) => {
       limit: limitNum
     });
 
-    // Si pide refresh o no hay nada en caché, generamos nuevas
     if (shouldRefresh || cachedRecs.length === 0) {
+      // 2. Generar nuevas si es necesario
       rawRecommendations = await generateRecommendations(idAspirante, limitNum);
-      
-      // Guardar/Actualizar en la DB
-      for (const rec of rawRecommendations) {
-        await saveMatch(idAspirante, rec.id_vacante, rec.score);
-      }
     } else {
-      // Usamos las de la base de datos
+      // 3. Formatear las de la caché para que tengan la misma estructura
       rawRecommendations = cachedRecs.map(rec => ({
         id_vacante: rec.id_vacante,
         score: parseFloat(rec.score_compatibilidad),
@@ -70,19 +68,22 @@ const getRecomendaciones = async (req, res) => {
       }));
     }
 
-    // 4. Formatear respuesta final con Habilidades (Enriquecimiento)
+    // 4. Enriquecer con detalles de habilidades
     const formattedRecommendations = await Promise.all(
       rawRecommendations.map(async (rec) => {
         const habilidades = await getSkillMatchDetails(idAspirante, rec.id_vacante);
         
+        // Verificamos si es una instancia de Sequelize o un objeto plano
+        const vacanteData = rec.vacante.get ? rec.vacante.get({ plain: true }) : rec.vacante;
+
         return {
           id_vacante: rec.id_vacante,
-          score: rec.score,
+          score: rec.score || rec.score_compatibilidad,
           vacante: {
-            ...rec.vacante.get({ plain: true }), // .get({plain: true}) es más limpio que .toJSON()
-            empresa_nombre: rec.vacante.empresa?.nombre,
-            empresa_sector: rec.vacante.empresa?.sector,
-            habilidades_match: habilidades // Detalle de qué habilidades tiene y cuáles le faltan
+            ...vacanteData,
+            empresa_nombre: vacanteData.empresa?.nombre,
+            empresa_sector: vacanteData.empresa?.sector,
+            habilidades_match: habilidades 
           }
         };
       })
@@ -92,19 +93,18 @@ const getRecomendaciones = async (req, res) => {
       success: true,
       data: {
         recomendaciones: formattedRecommendations,
-        perfil_completitud: aspirante.porcentaje_completitud,
-        advertencia: aspirante.porcentaje_completitud < 100 
+        perfil_completitud: aspirante.porcentaje_completitud || 0, // CORREGIDO
+        advertencia: (aspirante.porcentaje_completitud || 0) < 100 
           ? 'Completa tu perfil al 100% para poder postularte a estas vacantes.' 
           : null
       }
     });
 
   } catch (error) {
-    console.error('Error fetching recommendations:', error);
+    console.error('❌ Error fetching recommendations:', error);
     return res.status(500).json({ success: false, error: 'Error interno del servidor' });
   }
 };
-
 /**
  * GET /api/aspirantes/:id/match/:vacanteId
  * HU-12: Calcular y obtener el score de compatibilidad específico

@@ -19,15 +19,16 @@ const {verificarToken} = require('../middleware/authMiddleware');
  */
 router.get('/', vacanteController.getAllVacantes);
 
+// Esta ruta llamará a la función de recomendación que usa el algoritmo
+router.get('/recomendadas', verificarToken, vacanteController.recomendarVacantes);
+
+
 /**
  * GET /api/vacantes/:id
  * HU-10: Ver detalle de una vacante específica
  */
 router.get('/:id', vacanteController.getVacanteById);
 
-
-// Esta ruta llamará a la función de recomendación que usa el algoritmo
-router.get('/recomendadas', verificarToken, vacanteController.recomendarVacantes);
 
 
 /**

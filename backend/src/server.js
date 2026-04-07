@@ -3,28 +3,29 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 
 const { testConnection } = require('./config/database');
 const routes = require('./routes');
 
+// 1. INICIALIZAR APP (Esto debe ir antes de cualquier app.use)
 const app = express();
 const PORT = process.env.PORT || 3001;
-const path = require('path');
-
-
-
-//UPLOADS
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-
-
 
 // =============================================
 // Middleware
 // =============================================
 
-// Security headers
-app.use(helmet());
+// Security headers (CORREGIDO PARA FIREBASE POPUPS)
+app.use(
+  helmet({
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+// Servir archivos estáticos
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CORS configuration
 app.use(cors({

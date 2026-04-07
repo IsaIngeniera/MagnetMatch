@@ -3,9 +3,11 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Logo } from '../../complements/logo';
 import { auth, googleProvider } from '../../lib/firebase'; 
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+
 import { API_URL } from '@/lib/api';
 import { useRouter } from 'next/navigation'; 
+import { signInWithEmailAndPassword, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { useEffect } from 'react';
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -13,6 +15,54 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter(); 
 
+useEffect(() => {
+  const checkGoogleResponse = async () => {
+    // 1. Intentar obtener el resultado de Firebase
+    let result;
+    try {
+      result = await getRedirectResult(auth);
+    } catch (firebaseErr) {
+      console.error("Error de Firebase:", firebaseErr);
+      return; 
+    }
+
+    // 2. Si hay un usuario, procesamos con el backend
+    if (result && result.user) {
+      setLoading(true);
+      try {
+        const idToken = await result.user.getIdToken(true);
+
+        const res = await axios.post(`${API_URL}/api/auth/google-login`, {
+          email: result.user.email,
+          token: idToken,
+          firebase_uid: result.user.uid
+        });
+
+        console.log("Backend respondió:", res.data);
+
+        // 3. Guardar y Salir (Redirección forzada)
+        if (res.data) {
+          localStorage.setItem('token', res.data.token || idToken);
+          localStorage.setItem('user', JSON.stringify(res.data.usuario || { email: result.user.email }));
+          
+          setMensaje('✅ ¡Éxito! Entrando...');
+          
+          // Usamos replace para que no pueda volver atrás al login
+          window.location.replace('/vacantes/inicio');
+        }
+      } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+          console.error("Error backend:", err.response?.data);
+          setMensaje(`❌ Error servidor: ${err.response?.status}`);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  checkGoogleResponse();
+}, []); // Dejamos el array vacío para que solo corra al montar el componente
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -55,40 +105,13 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
-    setMensaje('');
-
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const res = await axios.post(`${API_URL}/api/auth/google-login`, {
-        email: result.user.email,
-        token: idToken,
-        firebase_uid: result.user.uid
-      });
-
-      if (res.data.success) {
-        // --- TAMBIÉN AQUÍ PARA GOOGLE ---
-        localStorage.setItem('token', idToken);
-        localStorage.setItem('user', JSON.stringify(res.data.usuario));
-
-        setMensaje('✅ Sesión iniciada con Google');
-        setTimeout(() => router.push('/vacantes/inicio'), 1000); 
-      }
-    } catch (err: unknown) {
-      console.error("Error en Google Login:", err);
-      let mensajeError = "Error al conectar con Google";
-      if (axios.isAxiosError(err)) {
-        mensajeError = err.response?.data?.error || err.message;
-      } else if (err instanceof Error) {
-        mensajeError = err.message;
-      }
-      setMensaje(`❌ ${mensajeError}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    await signInWithRedirect(auth, googleProvider);
+    // Esto recargará la página y te llevará a Google
+  } catch (error) {
+    console.error("Error al redireccionar:", error);
+  }
+};
 
   const inputStyle: React.CSSProperties = {
     width: '100%',

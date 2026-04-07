@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Vacante, Empresa, Habilidad, VacanteHabilidad } = require('../models');
+const { Vacante, Empresa, Habilidad, MatchRecomendacion, VacanteHabilidad, Aspirante } = require('../models');
 
 /**
  * GET /api/vacantes
@@ -304,22 +304,34 @@ const deleteVacante = async (req, res) => {
  * HU-12: Motor de Match - Calcula vacantes según habilidades del aspirante
  */const recomendarVacantes = async (req, res) => {
   try {
+    // 1. Obtener el aspirante desde el token (req.usuario viene del middleware verificarToken)
     const firebase_uid = req.usuario.firebase_uid;
+    
+    // Importante: Asegúrate que el modelo Aspirante esté importado arriba
+    const { Aspirante, Habilidad, Vacante, Empresa } = require('../models');
 
     const aspirante = await Aspirante.findOne({
       where: { firebase_uid },
       include: [{ model: Habilidad, as: 'habilidades' }]
     });
 
-    // CAMBIO: Si no hay aspirante o no tiene habilidades, devolvemos éxito pero data vacía
-    if (!aspirante || !aspirante.habilidades || aspirante.habilidades.length === 0) {
-      return res.json({
-        success: true,
-        data: [],
-        message: 'No tienes habilidades registradas aún.'
+    if (!aspirante) {
+      return res.status(404).json({
+        success: false,
+        error: 'Aspirante no encontrado'
       });
     }
 
+    // 2. Validación de habilidades para evitar que el algoritmo falle
+    if (!aspirante.habilidades || aspirante.habilidades.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: 'No tienes habilidades registradas aún para generar matches.'
+      });
+    }
+
+    // 3. Obtener vacantes activas
     const vacantes = await Vacante.findAll({
       where: { activa: true },
       include: [
@@ -330,32 +342,60 @@ const deleteVacante = async (req, res) => {
 
     const habilidadesAspiranteIds = aspirante.habilidades.map(h => h.id_habilidad);
 
-    const recomendaciones = vacantes.map(vacante => {
-      const habilidadesRequeridasIds = vacante.habilidades.map(h => h.id_habilidad);
-      const coincidencias = habilidadesRequeridasIds.filter(id => 
-        habilidadesAspiranteIds.includes(id)
-      );
+    // 4. Algoritmo de Match (Simplificado para asegurar que devuelva algo)
+   // CÓDIGO CORREGIDO
+// 1. Primero esperamos a que todas las promesas del map se cumplan
+let recomendaciones = await Promise.all(vacantes.map(async (vacante) => {
+    const habilidadesRequeridasIds = vacante.habilidades.map(h => h.id_habilidad);
+    
+    let score = 0;
+    if (habilidadesRequeridasIds.length > 0) {
+        const coincidencias = habilidadesRequeridasIds.filter(id => 
+            habilidadesAspiranteIds.includes(id)
+        );
+        score = Math.round((coincidencias.length / habilidadesRequeridasIds.length) * 100);
+    } else {
+        score = 50; 
+    }
 
-      const score = habilidadesRequeridasIds.length > 0 
-        ? Math.round((coincidencias.length / habilidadesRequeridasIds.length) * 100) 
-        : 0;
+    // El guardado en base de datos
+    if (score > 10) {
+        await MatchRecomendacion.upsert({
+            id_aspirante: aspirante.id_aspirante,
+            id_vacante: vacante.id_vacante,
+            score_compatibilidad: score,
+            estado_postulacion: 'pendiente',
+            fecha_calculo: new Date()
+        });
+    }
 
-      return {
+    return {
         ...vacante.toJSON(),
-        matchScore: score // Asegúrate de que el nombre coincida con el frontend
-      };
-    }).sort((a, b) => b.matchScore - a.matchScore);
+        matchScore: score
+    };
+}));
 
-    return res.json({
-      success: true,
-      data: recomendaciones
-    });
+// 2. AHORA que ya es un array real, aplicamos el sort
+recomendaciones.sort((a, b) => b.matchScore - a.matchScore);
+
+// 3. Enviar respuesta
+return res.json({
+    success: true,
+    data: recomendaciones
+});
 
   } catch (error) {
-    console.error('Error en Motor de Match:', error);
-    return res.status(500).json({ success: false, error: 'Error al procesar recomendaciones' });
+    console.error('Error en recomendarVacantes:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor al generar recomendaciones'
+    });
+
+  
   }
 };
+
+
 
 module.exports = {
   getAllVacantes,
@@ -363,5 +403,6 @@ module.exports = {
   createVacante,
   updateVacante,
   deleteVacante,
-  recomendarVacantes
+  recomendarVacantes,
+  
 };

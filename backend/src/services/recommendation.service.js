@@ -28,6 +28,8 @@ const calculateMatchScore = async (idAspirante, idVacante) => {
 
   if (!aspirante) return 0;
 
+  
+
   // 2. Get aspirante skills
   const aspiranteSkills = await AspiranteHabilidad.findAll({
     where: { id_aspirante: idAspirante }
@@ -121,30 +123,48 @@ const calculateModalityScore = (preferencia, vacanteModalidad) => {
   if (pref === 'híbrido' || vac === 'híbrido') return 70;
   return 30;
 };
-
 const generateRecommendations = async (idAspirante, limit = 10) => {
-  // MODIFICACIÓN: Agregamos validación de existencia de vacantes
+
+  
+  // 1. EL PRIMER CANDADO: El filtro "activa: true"
+  // Si en tu DB las vacantes no tienen la columna 'activa' o están en false, esto devuelve []
+  // Cambiamos temporalmente para traer todas y verificar.
   const vacantes = await Vacante.findAll({
-    where: { activa: true },
+    where: { activa: true }, // Comenta esta línea si no estás seguro de la columna 'activa'
     include: [{ model: Empresa, as: 'empresa' }]
   });
 
-  if (!vacantes || vacantes.length === 0) return [];
+  if (!vacantes || vacantes.length === 0) {
+    console.log("⚠️ No se encontraron vacantes en la base de datos.");
+    return [];
+  }
 
   const scoredVacantes = await Promise.all(
     vacantes.map(async (vacante) => {
       const score = await calculateMatchScore(idAspirante, vacante.id_vacante);
+      
+      // 2. IMPORTANTE: Guardar el match en la base de datos
+      await saveMatch(idAspirante, vacante.id_vacante, score);
+
       return {
-        id_vacante: vacante.id_vacante,
-        score,
-        vacante
-      };
+  id_vacante: vacante.id_vacante,
+  score: score, // Para lógica interna
+  score_compatibilidad: Math.round(score * 100), // Para mostrar al usuario
+  vacante: vacante.get({ plain: true }) // <--- Metemos el objeto vacante aquí dentro
+};
     })
   );
 
-  return scoredVacantes
+  // 3. EL SEGUNDO CANDADO: El filtro de score >= 0.4
+  // Si tu perfil está al 80%, es muy probable que tus scores den 0.3 o menos.
+  // Bajamos el umbral a 0.05 (5%) solo para confirmar que el sistema "respira".
+  const recommendations = scoredVacantes
+    .filter(item => item.score >= 0.05) 
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+
+  console.log(`✅ Generadas ${recommendations.length} recomendaciones para el aspirante ${idAspirante}`);
+  return recommendations;
 };
 const saveMatch = async (idAspirante, idVacante, score, esPostulacion = false) => {
   
