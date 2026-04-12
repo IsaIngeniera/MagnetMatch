@@ -10,56 +10,33 @@ const {
   Experiencia,
   MatchRecomendacion 
 } = require('../models');
-const profileService = require('./profile.service'); // Importamos el service de completitud
+const profileService = require('./profile.service');
 
-// Weight configuration for match scoring
 const WEIGHTS = {
-  habilidades: 0.40,      // 40% - Skills matching
-  experiencia: 0.25,      // 25% - Experience level
-  salario: 0.20,          // 20% - Salary compatibility
-  modalidad: 0.15         // 15% - Work modality match
+  habilidades: 0.40,
+  experiencia: 0.25,
+  salario: 0.20,
+  modalidad: 0.15
 };
 
 const calculateMatchScore = async (idAspirante, idVacante) => {
-  // 1. Get aspirante data (Agregamos validación de seguridad)
   const aspirante = await Aspirante.findByPk(idAspirante, {
     include: [{ model: Experiencia, as: 'experiencias' }]
   });
-
   if (!aspirante) return 0;
 
-  
-
-  // 2. Get aspirante skills
-  const aspiranteSkills = await AspiranteHabilidad.findAll({
-    where: { id_aspirante: idAspirante }
-  });
-
-  // 3. Get vacante data
+  const aspiranteSkills = await AspiranteHabilidad.findAll({ where: { id_aspirante: idAspirante } });
   const vacante = await Vacante.findByPk(idVacante);
   if (!vacante) return 0;
 
-  const vacanteSkills = await VacanteHabilidad.findAll({
-    where: { id_vacante: idVacante }
-  });
+  const vacanteSkills = await VacanteHabilidad.findAll({ where: { id_vacante: idVacante } });
 
-  // 4. Calculate scores (Mantenemos tu lógica intacta)
   const skillsScore = calculateSkillsScore(aspiranteSkills, vacanteSkills);
   const experienceScore = calculateExperienceScore(aspirante.experiencias || []);
-  
-  // Agregamos .toString() o parseFloat para evitar errores con tipos de datos de la DB
-  const salaryScore = calculateSalaryScore(
-    aspirante.expectativa_salarial,
-    vacante.salario_min,
-    vacante.salario_max
-  );
+  const salaryScore = calculateSalaryScore(aspirante.expectativa_salarial, vacante.salario_min, vacante.salario_max);
+  const modalityScore = calculateModalityScore(aspirante.modalidad_preferida, vacante.modalidad);
 
-  const modalityScore = calculateModalityScore(
-    aspirante.modalidad_preferida,
-    vacante.modalidad
-  );
-
-  const totalScore = 
+  const totalScore =
     skillsScore * WEIGHTS.habilidades +
     experienceScore * WEIGHTS.experiencia +
     salaryScore * WEIGHTS.salario +
@@ -67,8 +44,6 @@ const calculateMatchScore = async (idAspirante, idVacante) => {
 
   return Math.round(totalScore * 100) / 100;
 };
-
-
 
 const calculateSkillsScore = (aspiranteSkills, vacanteSkills) => {
   if (vacanteSkills.length === 0) return 50;
@@ -123,14 +98,10 @@ const calculateModalityScore = (preferencia, vacanteModalidad) => {
   if (pref === 'híbrido' || vac === 'híbrido') return 70;
   return 30;
 };
-const generateRecommendations = async (idAspirante, limit = 10) => {
 
-  
-  // 1. EL PRIMER CANDADO: El filtro "activa: true"
-  // Si en tu DB las vacantes no tienen la columna 'activa' o están en false, esto devuelve []
-  // Cambiamos temporalmente para traer todas y verificar.
+const generateRecommendations = async (idAspirante, limit = 10) => {
   const vacantes = await Vacante.findAll({
-    where: { activa: true }, // Comenta esta línea si no estás seguro de la columna 'activa'
+    where: { activa: true },
     include: [{ model: Empresa, as: 'empresa' }]
   });
 
@@ -142,33 +113,31 @@ const generateRecommendations = async (idAspirante, limit = 10) => {
   const scoredVacantes = await Promise.all(
     vacantes.map(async (vacante) => {
       const score = await calculateMatchScore(idAspirante, vacante.id_vacante);
-      
-      // 2. IMPORTANTE: Guardar el match en la base de datos
       await saveMatch(idAspirante, vacante.id_vacante, score);
-
       return {
-  id_vacante: vacante.id_vacante,
-  score: score, // Para lógica interna
-  score_compatibilidad: Math.round(score * 100), // Para mostrar al usuario
-  vacante: vacante.get({ plain: true }) // <--- Metemos el objeto vacante aquí dentro
-};
+        id_vacante: vacante.id_vacante,
+        score,
+        score_compatibilidad: Math.round(score * 100),
+        vacante: vacante.get({ plain: true })
+      };
     })
   );
 
-  // 3. EL SEGUNDO CANDADO: El filtro de score >= 0.4
-  // Si tu perfil está al 80%, es muy probable que tus scores den 0.3 o menos.
-  // Bajamos el umbral a 0.05 (5%) solo para confirmar que el sistema "respira".
   const recommendations = scoredVacantes
-    .filter(item => item.score >= 0.05) 
+    .filter(item => item.score >= 0.05)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 
   console.log(`✅ Generadas ${recommendations.length} recomendaciones para el aspirante ${idAspirante}`);
   return recommendations;
 };
+
+/**
+ * ✅ FIX: saveMatch nunca sobreescribe estado_postulacion si ya tiene un estado real.
+ * Solo crea el registro con 'pendiente' si es nuevo.
+ * Si ya existe, solo actualiza score y fecha — el estado lo maneja únicamente updatePostulacion.
+ */
 const saveMatch = async (idAspirante, idVacante, score, esPostulacion = false) => {
-  
-  // 1. Si el usuario intenta POSTULARSE (clic en el botón de aplicar)
   if (esPostulacion) {
     const { porcentaje } = await profileService.calculateProfileCompleteness(idAspirante);
     if (porcentaje < 100) {
@@ -176,33 +145,33 @@ const saveMatch = async (idAspirante, idVacante, score, esPostulacion = false) =
     }
   }
 
-  // 2. Buscar o crear el registro
   const [match, created] = await MatchRecomendacion.findOrCreate({
-    where: { 
-      id_aspirante: parseInt(idAspirante), 
-      id_vacante: parseInt(idVacante) 
+    where: {
+      id_aspirante: parseInt(idAspirante),
+      id_vacante: parseInt(idVacante)
     },
     defaults: {
       score_compatibilidad: score,
-      // Si es postulación, entra como 'postulado', si no, como 'pendiente'
+      // 'pendiente' solo se asigna al CREAR el registro por primera vez
       estado_postulacion: esPostulacion ? 'postulado' : 'pendiente',
       fecha_calculo: new Date()
     }
   });
 
-  // 3. Si ya existía (ej. era una recomendación y ahora se postula)
   if (!created) {
+    // ✅ NUNCA tocar estado_postulacion aquí — solo actualizar el score
+    // Si el usuario ya se postuló (estado = 'postulado'), ese estado se preserva
     match.score_compatibilidad = score;
     match.fecha_calculo = new Date();
-    
-    // Si el usuario se está postulando ahora, actualizamos el estado
+
+    // Solo si es una postulación explícita, actualizar el estado
     if (esPostulacion) {
       match.estado_postulacion = 'postulado';
     }
-    
+
     await match.save();
   }
-  
+
   return match;
 };
 

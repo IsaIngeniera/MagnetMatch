@@ -14,9 +14,7 @@ interface Vacante {
   modalidad: string;
   matchScore?: number;
   score?: number;
-  empresa?: {
-    nombre: string;
-  };
+  empresa?: { nombre: string };
   habilidades?: Habilidad[];
 }
 
@@ -25,30 +23,30 @@ export default function InicioPage() {
   const [recomendadas, setRecomendadas] = useState<Vacante[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ HU "Aplicar con un clic": estado por vacante
+  const [aplicando, setAplicando] = useState<number | null>(null);
+  const [mensajePostulacion, setMensajePostulacion] = useState<{ id: number; texto: string; exito: boolean } | null>(null);
+  // ✅ Registro de vacantes ya aplicadas en esta sesión
+  const [aplicadas, setAplicadas] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
+        if (!token) { setLoading(false); return; }
 
         const config = { headers: { Authorization: `Bearer ${token}` } };
 
-        // Usamos el mismo endpoint que el perfil para garantizar consistencia
         const [resPerfil, resRec] = await Promise.all([
           axios.get(`${API_URL}/api/aspirantes/perfil/me`, config),
           axios.get(`${API_URL}/api/vacantes/recomendadas`, config).catch(() => null)
         ]);
 
-        // porcentaje_completitud es el mismo campo que muestra la página de perfil
         setPorcentaje(resPerfil.data.data?.porcentaje_completitud || 0);
 
         if (resRec?.data?.success) {
           setRecomendadas(resRec.data.data || []);
         }
-
       } catch (err) {
         if (axios.isAxiosError(err)) {
           if (err.response?.status === 400) {
@@ -68,13 +66,56 @@ export default function InicioPage() {
     fetchData();
   }, []);
 
+  // ✅ HU "Aplicar con un clic": handler
+  const handleAplicar = async (vacante: Vacante) => {
+    // CA: Restricción de perfil al 100%
+    if (porcentaje < 100) {
+      setMensajePostulacion({
+        id: vacante.id_vacante,
+        texto: `Tu perfil está al ${porcentaje}%. Complétalo al 100% para poder aplicar.`,
+        exito: false
+      });
+      return;
+    }
+
+    setAplicando(vacante.id_vacante);
+    setMensajePostulacion(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      // CA: Sincronización de compatibilidad — el backend calcula y guarda el score automáticamente
+      await axios.post(
+        `${API_URL}/api/aspirantes/me/match/${vacante.id_vacante}`,
+        { estado_postulacion: 'postulado' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // CA: Confirmación de acción exitosa
+      setMensajePostulacion({
+        id: vacante.id_vacante,
+        texto: '¡Postulación enviada con éxito! La empresa recibirá tu perfil y score de compatibilidad.',
+        exito: true
+      });
+      setAplicadas(prev => new Set(prev).add(vacante.id_vacante));
+
+    } catch (err) {
+      let texto = 'Error al enviar la postulación. Inténtalo de nuevo.';
+      if (axios.isAxiosError(err)) {
+        texto = err.response?.data?.error || texto;
+      }
+      setMensajePostulacion({ id: vacante.id_vacante, texto, exito: false });
+    } finally {
+      setAplicando(null);
+    }
+  };
+
   if (loading) return <div style={{ padding: '20px', color: '#00C94A', fontWeight: 700 }}>Cargando dashboard...</div>;
 
   return (
     <div style={{ maxWidth: '900px' }}>
       <h1 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '30px', color: '#111' }}>Panel de Inicio</h1>
 
-      {/* BARRA DE PROGRESO CIRCULAR */}
+      {/* BARRA DE PROGRESO CIRCULAR — sin cambios */}
       <div style={{
         background: '#fff', borderRadius: '24px', padding: '30px', marginBottom: '40px',
         display: 'flex', alignItems: 'center', gap: '30px', border: '1px solid #eef2f6',
@@ -94,8 +135,16 @@ export default function InicioPage() {
         <div>
           <h3 style={{ margin: '0 0 5px', fontSize: '20px', fontWeight: 800 }}>Progreso de tu Perfil</h3>
           <p style={{ color: '#64748b', margin: 0, fontSize: '15px' }}>
-            {porcentaje < 100 ? 'Completa tus datos para aumentar tus posibilidades.' : '¡Tu perfil está al máximo nivel!'}
+            {porcentaje < 100
+              ? 'Completa tus datos para aumentar tus posibilidades.'
+              : '¡Tu perfil está al máximo nivel!'}
           </p>
+          {/* ✅ Aviso contextual si el perfil no está completo */}
+          {porcentaje < 100 && (
+            <p style={{ color: '#f59e0b', margin: '6px 0 0', fontSize: '13px', fontWeight: 600 }}>
+              ⚠️ Necesitas el 100% para poder aplicar a vacantes.
+            </p>
+          )}
         </div>
       </div>
 
@@ -140,13 +189,67 @@ export default function InicioPage() {
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#00C94A', fontSize: '24px', fontWeight: 900 }}>
-                  {v.matchScore || v.score || 0}%
+              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                <div>
+                  <div style={{ color: '#00C94A', fontSize: '24px', fontWeight: 900 }}>
+                    {v.matchScore || v.score || 0}%
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>MATCH</div>
                 </div>
-                <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>MATCH</div>
+
+                {/* ✅ HU "Aplicar con un clic": botón con restricción de perfil */}
+                <button
+                  onClick={() => handleAplicar(v)}
+                  disabled={aplicando === v.id_vacante || aplicadas.has(v.id_vacante)}
+                  title={porcentaje < 100 ? `Tu perfil está al ${porcentaje}%. Necesitas el 100% para aplicar.` : 'Aplicar a esta vacante'}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: (aplicando === v.id_vacante || aplicadas.has(v.id_vacante)) ? 'not-allowed' : 'pointer',
+                    // Gris si perfil incompleto o ya aplicado, verde si puede aplicar
+                    background: aplicadas.has(v.id_vacante)
+                      ? '#e2e8f0'
+                      : porcentaje < 100
+                        ? '#e2e8f0'
+                        : aplicando === v.id_vacante
+                          ? '#ccc'
+                          : 'linear-gradient(135deg, #00FF6A, #00C94A)',
+                    color: (porcentaje < 100 || aplicadas.has(v.id_vacante)) ? '#94a3b8' : '#fff',
+                    boxShadow: (porcentaje === 100 && !aplicadas.has(v.id_vacante))
+                      ? '0 4px 12px rgba(0,201,74,0.25)'
+                      : 'none',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {aplicando === v.id_vacante
+                    ? 'Enviando...'
+                    : aplicadas.has(v.id_vacante)
+                      ? '✅ Aplicado'
+                      : porcentaje < 100
+                        ? '🔒 Perfil incompleto'
+                        : 'Aplicar'}
+                </button>
               </div>
             </div>
+
+            {/* ✅ CA: Confirmación / mensaje de error por vacante */}
+            {mensajePostulacion?.id === v.id_vacante && (
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                fontWeight: 600,
+                background: mensajePostulacion.exito ? '#f0fdf4' : '#fff7ed',
+                color: mensajePostulacion.exito ? '#16a34a' : '#b45309',
+                border: `1px solid ${mensajePostulacion.exito ? '#bbf7d0' : '#fde68a'}`
+              }}>
+                {mensajePostulacion.texto}
+              </div>
+            )}
           </div>
         ))
       ) : (
