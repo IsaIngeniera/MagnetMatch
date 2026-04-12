@@ -7,13 +7,16 @@ const {
   Logro, 
   Mensaje 
 } = require('../models');
-const { updateProfileCompleteness } = require('../services/profile.service');
+const { 
+  updateProfileCompleteness,
+  calculateProfileCompleteness,
+  getRecommendations
+} = require('../services/profile.service');
 const bcrypt = require('bcryptjs');
-const admin = require('firebase-admin');
 
 /**
  * POST /api/aspirantes
- * HU-01: Registro de nuevo aspirante (Sincronizado con Firebase)
+ * HU-01: Registro de nuevo aspirante
  */
 const createAspirante = async (req, res) => {
   try {
@@ -28,7 +31,6 @@ const createAspirante = async (req, res) => {
       modalidad_preferida 
     } = req.body;
 
-    // 1. Validaciones básicas
     if (!email || !password) {
       return res.status(400).json({ 
         success: false, 
@@ -36,7 +38,6 @@ const createAspirante = async (req, res) => {
       });
     }
 
-    // 2. Verificar si el email ya existe en Postgres
     const existe = await Aspirante.findOne({ where: { email } });
     if (existe) {
       return res.status(400).json({ 
@@ -45,19 +46,20 @@ const createAspirante = async (req, res) => {
       });
     }
 
-    // 3. Seguridad: Encriptar contraseña
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 4. Crear registro en la tabla 'aspirante'
+    // ✅ porcentaje_completitud arranca en 0 por el defaultValue del modelo.
+    //    NO se calcula aquí porque el usuario recién creado no tiene
+    //    experiencia, educación, habilidades ni logros todavía.
     const nuevoAspirante = await Aspirante.create({
       nombres,
       apellidos,
-      email, // Coincide con tu modelo y DB
+      email,
       password: hashedPassword,
       telefono: telefono || null,
       expectativa_salarial: expectativa_salarial || null,
-      modalidad_preferida: modalidad_preferida || 'remoto',
+      modalidad_preferida: modalidad_preferida || null,
       firebase_uid: firebase_uid,
       fecha_registro: new Date()
     });
@@ -82,7 +84,7 @@ const createAspirante = async (req, res) => {
 };
 
 /**
- * GET /api/aspirantes/perfil
+ * GET /api/aspirantes/perfil/me
  * HU-04: Ver perfil completo
  */
 const getAspiranteById = async (req, res) => {
@@ -128,28 +130,35 @@ const getAspiranteById = async (req, res) => {
 
 /**
  * GET /api/aspirantes/completitud
+ * ✅ FIX: ahora usa calculateProfileCompleteness del service, no getProgreso()
  */
 const getCompletitud = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
-    const aspirante = await Aspirante.findOne({ 
-      where: { firebase_uid },
-      include: [{ model: Experiencia, as: 'experiencias' }] 
-    });
+    const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
-    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+    if (!aspirante) {
+      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+    }
 
-    const porcentaje = aspirante.getProgreso(); 
+    // ✅ Usar el servicio real con pesos, no el método simple del modelo
+    const completeness = await calculateProfileCompleteness(aspirante.id_aspirante);
+
+    // Sincronizar el porcentaje en la BD también
+    await Aspirante.update(
+      { porcentaje_completitud: completeness.porcentaje },
+      { where: { id_aspirante: aspirante.id_aspirante } }
+    );
 
     return res.json({
       success: true,
       data: {
-        porcentaje_total: porcentaje,
-        mensaje: porcentaje < 100 ? `Perfil al ${porcentaje}%` : "¡Perfil al 100%!",
-        recomendaciones: {
-          experiencia: (aspirante.experiencias?.length > 0) ? "✅ Experiencia cargada" : "💡 Agrega experiencia",
-          bio: aspirante.descripcion ? "✅ Descripción completa" : "💡 Agrega una descripción"
-        }
+        porcentaje_total: completeness.porcentaje,
+        detalles: completeness.detalles,
+        recomendaciones: getRecommendations(completeness),
+        mensaje: completeness.porcentaje < 100
+          ? `Perfil al ${completeness.porcentaje}%`
+          : '¡Perfil al 100%!'
       }
     });
   } catch (error) {
@@ -165,16 +174,22 @@ const updateAspirante = async (req, res) => {
     const firebase_uid = req.usuario.firebase_uid;
     const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
-    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+    if (!aspirante) {
+      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+    }
 
-    const camposPermitidos = ['nombres', 'apellidos', 'telefono', 'expectativa_salarial', 'modalidad_preferida', 'descripcion', 'foto_url'];
+    const camposPermitidos = [
+      'nombres', 'apellidos', 'telefono',
+      'expectativa_salarial', 'modalidad_preferida', 'descripcion', 'foto_url'
+    ];
     const datosAActualizar = {};
-
     Object.keys(req.body).forEach(key => {
       if (camposPermitidos.includes(key)) datosAActualizar[key] = req.body[key];
     });
 
     await aspirante.update(datosAActualizar);
+
+    // Recalcular y guardar el porcentaje real después de actualizar
     await updateProfileCompleteness(aspirante.id_aspirante);
 
     const actualizado = await Aspirante.findByPk(aspirante.id_aspirante);
@@ -224,10 +239,11 @@ const getMensajes = async (req, res) => {
 const marcarMensajeLeido = async (req, res) => {
   try {
     const { id_mensaje } = req.params;
-    const id_aspirante = req.usuario.id_aspirante;
+    const firebase_uid = req.usuario.firebase_uid;
+    const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
     const mensaje = await Mensaje.findOne({ 
-      where: { id_mensaje, id_receptor: id_aspirante } 
+      where: { id_mensaje, id_receptor: aspirante.id_aspirante } 
     });
 
     if (!mensaje) return res.status(404).json({ success: false, error: 'Mensaje no encontrado' });
@@ -241,7 +257,6 @@ const marcarMensajeLeido = async (req, res) => {
   }
 };
 
-// Añadir al final de aspirante.controller.js
 const getAllAspirantes = async (req, res) => {
   try {
     const aspirantes = await Aspirante.findAll();
@@ -250,21 +265,19 @@ const getAllAspirantes = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
 /**
  * POST /api/aspirantes/me/upload-cv
- * HU-05: Subir hoja de vida en PDF
  */
 const uploadCV = async (req, res) => {
   try {
-    // 1. Verificar si multer subió el archivo
     if (!req.file) {
       return res.status(400).json({ 
         success: false, 
-        error: 'No se recibió ningún archivo. Asegúrate de enviarlo como "cv" en el form-data.' 
+        error: 'No se recibió ningún archivo.' 
       });
     }
 
-    // 2. Obtener el aspirante desde el token (verificarToken)
     const firebase_uid = req.usuario.firebase_uid;
     const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
@@ -272,14 +285,8 @@ const uploadCV = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
     }
 
-    // 3. Generar la URL o ruta del archivo
-    // 'req.file.filename' es el nombre que multer le dio al archivo en la carpeta uploads
     const urlArchivo = `/uploads/cvs/${req.file.filename}`;
-
-    // 4. Actualizar el campo cv_url en la base de datos
     await aspirante.update({ cv_url: urlArchivo });
-
-    // 5. Opcional: Actualizar el progreso del perfil automáticamente
     await updateProfileCompleteness(aspirante.id_aspirante);
 
     return res.json({
@@ -295,9 +302,6 @@ const uploadCV = async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
-
-
-
 
 module.exports = {
   createAspirante,
