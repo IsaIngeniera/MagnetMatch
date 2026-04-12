@@ -12,7 +12,6 @@ const Aspirante = sequelize.define('Aspirante', {
     allowNull: true,
     unique: true
   },
-  // --- NUEVOS CAMPOS AÑADIDOS ---
   email: {
     type: DataTypes.STRING(255),
     allowNull: false,
@@ -25,7 +24,6 @@ const Aspirante = sequelize.define('Aspirante', {
     type: DataTypes.STRING(255),
     allowNull: false
   },
-  // ------------------------------
   nombres: {
     type: DataTypes.STRING(100),
     allowNull: false
@@ -52,7 +50,7 @@ const Aspirante = sequelize.define('Aspirante', {
   porcentaje_completitud: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0,
+    defaultValue: 0, // ✅ Los nuevos usuarios empiezan en 0%
     validate: {
       min: 0,
       max: 100
@@ -64,31 +62,16 @@ const Aspirante = sequelize.define('Aspirante', {
     defaultValue: DataTypes.NOW
   }
 }, {
-  tableName: 'aspirante', // Asegúrate que en Postgres la tabla se llame así en minúsculas
+  tableName: 'aspirante',
   timestamps: false,
   freezeTableName: true
 });
 
-// Método para calcular progreso
-Aspirante.prototype.getProgreso = function() {
-  
-  const camposObligatorios = [
-    'nombres', 'apellidos', 'email', 'telefono'
-  ];
-  let completados = 0;
-  
-  camposObligatorios.forEach(campo => {
-    if (this[campo] && this[campo] !== '') {
-      completados++;
-    }
-  });
+// ❌ ELIMINADO: getProgreso() — solo revisaba 4 campos y devolvía hasta 100%
+//    ignorando experiencia, educación, habilidades y logros.
+//    El cálculo correcto está en profile.service.js → calculateProfileCompleteness()
 
-  return Math.round((completados / camposObligatorios.length) * 100);
-};
-
-// Hook para actualizar el porcentaje antes de guardar
-Aspirante.beforeSave(async (aspirante) => {
-  aspirante.porcentaje_completitud = aspirante.getProgreso();
-});
+// ❌ ELIMINADO: beforeSave hook — sobreescribía porcentaje_completitud con
+//    getProgreso() en cada guardado, causando que usuarios nuevos aparecieran al 100%.
 
 module.exports = Aspirante;
