@@ -8,15 +8,10 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env'
 
 const { 
   sequelize,
-  Aspirante, 
   Empresa, 
   Vacante, 
   Habilidad, 
   VacanteHabilidad,
-  Experiencia,
-  Educacion,
-  AspiranteHabilidad,
-  Logro
 } = require('../models');
 
 const seedDatabase = async () => {
@@ -79,7 +74,7 @@ const seedDatabase = async () => {
       { nombre: 'Scrum', categoria: 'Metodologías' },
     ], { ignoreDuplicates: true });
 
-    console.log(`  Created ${habilidades.length} habilidades`);
+    console.log(`  Created/found ${habilidades.length} habilidades`);
 
     // =============================================
     // Seed Empresas (Companies)
@@ -118,70 +113,79 @@ const seedDatabase = async () => {
       }
     ], { ignoreDuplicates: true });
 
-    console.log(`  Created ${empresas.length} empresas`);
+    console.log(`  Created/found ${empresas.length} empresas`);
 
     // =============================================
     // Seed Vacantes (Job Postings)
     // =============================================
     console.log('\nSeeding vacantes...');
-    const vacantes = await Vacante.bulkCreate([
-      {
-        id_empresa: empresas[0].id_empresa,
-        titulo: 'Senior Full Stack Developer',
-        descripcion: 'Buscamos desarrollador full stack con experiencia en React y Node.js para liderar proyectos de alta complejidad.',
-        salario_min: 80000,
-        salario_max: 120000,
-        modalidad: 'híbrido',
-        activa: true
-      },
-      {
-        id_empresa: empresas[0].id_empresa,
-        titulo: 'Junior Frontend Developer',
-        descripcion: 'Oportunidad para desarrolladores junior con conocimientos en React o Vue.js.',
-        salario_min: 35000,
-        salario_max: 50000,
-        modalidad: 'remoto',
-        activa: true
-      },
-      {
-        id_empresa: empresas[1].id_empresa,
-        titulo: 'Data Engineer',
-        descripcion: 'Ingeniero de datos para diseñar y mantener pipelines de datos a gran escala.',
-        salario_min: 70000,
-        salario_max: 100000,
-        modalidad: 'híbrido',
-        activa: true
-      },
-      {
-        id_empresa: empresas[2].id_empresa,
-        titulo: 'DevOps Engineer',
-        descripcion: 'Ingeniero DevOps con experiencia en AWS, Docker y Kubernetes.',
-        salario_min: 75000,
-        salario_max: 110000,
-        modalidad: 'remoto',
-        activa: true
-      },
-      {
-        id_empresa: empresas[3].id_empresa,
-        titulo: 'Backend Developer Python',
-        descripcion: 'Desarrollador backend con experiencia en Python, FastAPI o Django.',
-        salario_min: 60000,
-        salario_max: 90000,
-        modalidad: 'presencial',
-        activa: true
-      },
-      {
-        id_empresa: empresas[4].id_empresa,
-        titulo: 'Tech Lead',
-        descripcion: 'Líder técnico para equipo de desarrollo e-commerce. Experiencia en arquitectura de software.',
-        salario_min: 100000,
-        salario_max: 150000,
-        modalidad: 'híbrido',
-        activa: true
-      }
-    ]);
 
-    console.log(`  Created ${vacantes.length} vacantes`);
+    const vacantesExistentes = await Vacante.count();
+    let vacantes;
+
+    if (vacantesExistentes > 0) {
+      console.log(`  Ya existen ${vacantesExistentes} vacantes. Omitiendo creación...`);
+      vacantes = await Vacante.findAll({ order: [['id_vacante', 'ASC']] });
+    } else {
+      vacantes = await Vacante.bulkCreate([
+        {
+          id_empresa: empresas[0].id_empresa,
+          titulo: 'Senior Full Stack Developer',
+          descripcion: 'Buscamos desarrollador full stack con experiencia en React y Node.js para liderar proyectos de alta complejidad.',
+          salario_min: 80000,
+          salario_max: 120000,
+          modalidad: 'híbrido',
+          activa: true
+        },
+        {
+          id_empresa: empresas[0].id_empresa,
+          titulo: 'Junior Frontend Developer',
+          descripcion: 'Oportunidad para desarrolladores junior con conocimientos en React o Vue.js.',
+          salario_min: 35000,
+          salario_max: 50000,
+          modalidad: 'remoto',
+          activa: true
+        },
+        {
+          id_empresa: empresas[1].id_empresa,
+          titulo: 'Data Engineer',
+          descripcion: 'Ingeniero de datos para diseñar y mantener pipelines de datos a gran escala.',
+          salario_min: 70000,
+          salario_max: 100000,
+          modalidad: 'híbrido',
+          activa: true
+        },
+        {
+          id_empresa: empresas[2].id_empresa,
+          titulo: 'DevOps Engineer',
+          descripcion: 'Ingeniero DevOps con experiencia en AWS, Docker y Kubernetes.',
+          salario_min: 75000,
+          salario_max: 110000,
+          modalidad: 'remoto',
+          activa: true
+        },
+        {
+          id_empresa: empresas[3].id_empresa,
+          titulo: 'Backend Developer Python',
+          descripcion: 'Desarrollador backend con experiencia en Python, FastAPI o Django.',
+          salario_min: 60000,
+          salario_max: 90000,
+          modalidad: 'presencial',
+          activa: true
+        },
+        {
+          id_empresa: empresas[4].id_empresa,
+          titulo: 'Tech Lead',
+          descripcion: 'Líder técnico para equipo de desarrollo e-commerce. Experiencia en arquitectura de software.',
+          salario_min: 100000,
+          salario_max: 150000,
+          modalidad: 'híbrido',
+          activa: true
+        }
+      ], { ignoreDuplicates: true });
+
+      console.log(`  Created ${vacantes.length} vacantes`);
+    }
 
     // =============================================
     // Seed Vacante Habilidades (Required Skills)
@@ -229,72 +233,7 @@ const seedDatabase = async () => {
       { id_vacante: vacantes[5].id_vacante, id_habilidad: habMap['Metodologías Ágiles'], es_obligatoria: true },
     ], { ignoreDuplicates: true });
 
-    console.log('  Created vacante-habilidad relationships');
-
-    // =============================================
-    // Seed Sample Aspirante (for testing)
-    // =============================================
-    console.log('\nSeeding sample aspirante...');
-    const aspirante = await Aspirante.create({
-      nombres: 'Juan Carlos',
-      apellidos: 'Pérez García',
-      firebase_uid: 'user_test_123',
-      telefono: '+52 55 1234 5678',
-      expectativa_salarial: 75000,
-      modalidad_preferida: 'híbrido',
-      porcentaje_completitud: 0
-    });
-
-    // Add experience
-    await Experiencia.create({
-      id_aspirante: aspirante.id_aspirante,
-      cargo: 'Full Stack Developer',
-      empresa: 'Startup ABC',
-      fecha_inicio: '2021-01-15',
-      fecha_fin: '2023-06-30',
-      descripcion_logros: 'Desarrollo de aplicación web con React y Node.js. Implementación de CI/CD.'
-    });
-
-    await Experiencia.create({
-      id_aspirante: aspirante.id_aspirante,
-      cargo: 'Junior Developer',
-      empresa: 'Tech Company XYZ',
-      fecha_inicio: '2019-03-01',
-      fecha_fin: '2020-12-31',
-      descripcion_logros: 'Mantenimiento de aplicaciones legacy. Desarrollo de APIs REST.'
-    });
-
-    // Add education
-    await Educacion.create({
-      id_aspirante: aspirante.id_aspirante,
-      institucion: 'Universidad Tecnológica',
-      titulo: 'Ingeniería en Sistemas Computacionales',
-      estado: 'completado',
-      fecha_fin: '2018-12-15'
-    });
-
-    // Add skills
-    await AspiranteHabilidad.bulkCreate([
-      { id_aspirante: aspirante.id_aspirante, id_habilidad: habMap['JavaScript'], nivel: 'avanzado', anios_experiencia: 4 },
-      { id_aspirante: aspirante.id_aspirante, id_habilidad: habMap['TypeScript'], nivel: 'intermedio', anios_experiencia: 2 },
-      { id_aspirante: aspirante.id_aspirante, id_habilidad: habMap['React'], nivel: 'avanzado', anios_experiencia: 3 },
-      { id_aspirante: aspirante.id_aspirante, id_habilidad: habMap['Node.js'], nivel: 'intermedio', anios_experiencia: 3 },
-      { id_aspirante: aspirante.id_aspirante, id_habilidad: habMap['PostgreSQL'], nivel: 'intermedio', anios_experiencia: 2 },
-    ]);
-
-    // Add achievement
-    await Logro.create({
-      id_aspirante: aspirante.id_aspirante,
-      titulo_logro: 'AWS Certified Developer - Associate',
-      url_credencial: 'https://aws.amazon.com/certification/verify/ABC123',
-      verificado: true
-    });
-
-    console.log(`  Created sample aspirante: ${aspirante.nombres} ${aspirante.apellidos}`);
-
-    // Update profile completeness
-    const { updateProfileCompleteness } = require('../services/profile.service');
-    await updateProfileCompleteness(aspirante.id_aspirante);
+    console.log('  Created/found vacante-habilidad relationships');
 
     console.log('\n========================================');
     console.log('Database seeding completed successfully!');
