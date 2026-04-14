@@ -52,7 +52,7 @@ export default function PostulacionesPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '30px' }}>Mi Seguimiento</h1>
+      <h1 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '30px', color: '#000000' }}>Mi Seguimiento</h1>
 
       {/* ✅ HU: Mensaje informativo cuando no hay actividad */}
       {sinActividad ? (
@@ -113,7 +113,7 @@ export default function PostulacionesPage() {
 
               {/* ✅ Mensaje dentro de cada columna vacía */}
               {postulaciones.filter(p => p.estado_postulacion === col.id).length === 0 && (
-                <p style={{ textAlign: 'center', fontSize: '12px', color: '#cbd5e1', marginTop: '30px' }}>
+                <p style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', marginTop: '30px' }}>
                   Sin postulaciones aquí
                 </p>
               )}

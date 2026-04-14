@@ -133,8 +133,8 @@ export default function InicioPage() {
           }}>{porcentaje}%</div>
         </div>
         <div>
-          <h3 style={{ margin: '0 0 5px', fontSize: '20px', fontWeight: 800 }}>Progreso de tu Perfil</h3>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '15px' }}>
+          <h3 style={{ margin: '0 0 5px', fontSize: '20px', fontWeight: 800, color: '#000000'}}>Progreso de tu Perfil</h3>
+          <p style={{ color: '#000000', margin: 0, fontSize: '15px' }}>
             {porcentaje < 100
               ? 'Completa tus datos para aumentar tus posibilidades.'
               : '¡Tu perfil está al máximo nivel!'}
@@ -149,7 +149,7 @@ export default function InicioPage() {
       </div>
 
       {/* VACANTES RECOMENDADAS */}
-      <h2 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <h2 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#000000' }}>
         Recomendaciones para ti{' '}
         <span style={{ background: '#00C94A15', color: '#00C94A', padding: '2px 10px', borderRadius: '20px', fontSize: '12px' }}>TOP MATCH</span>
       </h2>

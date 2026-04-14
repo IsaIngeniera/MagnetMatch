@@ -23,8 +23,8 @@ export default function VacantesLayout({ children }: { children: React.ReactNode
         left: 0,
         right: 0,
         height: '48px',
-        background: '#ffffff',
-        borderBottom: '1px solid #e5e5e5',
+        background: '#f7f0f5',
+        borderBottom: '1px solid #f7f0f5',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -48,8 +48,8 @@ export default function VacantesLayout({ children }: { children: React.ReactNode
                   borderRadius: '8px',
                   textDecoration: 'none',
                   fontSize: '13px',
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? '#00C94A' : '#64748b',
+                  fontWeight: isActive ? 700 : 700,
+                  color: isActive ? '#00C94A' : '#343a40',
                   background: isActive ? 'rgba(0,201,74,0.08)' : 'transparent',
                   border: isActive ? '1px solid rgba(0,201,74,0.2)' : '1px solid transparent',
                   transition: 'all 0.18s',
@@ -70,8 +70,8 @@ export default function VacantesLayout({ children }: { children: React.ReactNode
         {/* SIDEBAR FIJO (empieza justo bajo el header) */}
         <aside style={{
           width: '260px',
-          background: '#fff',
-          borderRight: '1px solid #e5e5e5',
+          background: '#f7f0f5',
+          borderRight: '1px solid #f7f0f5',
           padding: '30px 20px',
           position: 'fixed',
           top: '48px',
@@ -99,8 +99,8 @@ export default function VacantesLayout({ children }: { children: React.ReactNode
                     textDecoration: 'none',
                     transition: 'all 0.2s',
                     background: isActive ? 'rgba(0,201,74,0.1)' : 'transparent',
-                    color: isActive ? '#00C94A' : '#64748b',
-                    fontWeight: isActive ? 700 : 500,
+                    color: isActive ? '#00C94A' : '#343a40',
+                    fontWeight: isActive ? 700 : 700,
                   }}
                 >
                   <span style={{ fontSize: '18px' }}>{link.icon}</span>
