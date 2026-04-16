@@ -166,7 +166,7 @@ DB_NAME=magneto_db
 Inicia el servidor:
 
 ```bash
-node index.js
+node src/server.js
 ```
 
 > ✅ El backend quedará corriendo en **http://localhost:4000**
