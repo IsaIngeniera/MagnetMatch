@@ -5,6 +5,7 @@ const authRoutes = require('./authRoutes');
 const aspiranteRoutes = require('./aspirante.routes');
 const vacanteRoutes = require('./vacante.routes');
 const habilidadRoutes = require('./habilidad.routes');
+const mensajeRoutes = require('./mensaje.routes');
 
 // Mount routes
 // Esto crea el prefijo /auth
@@ -12,6 +13,7 @@ router.use('/auth', authRoutes);
 router.use('/aspirantes', aspiranteRoutes);
 router.use('/vacantes', vacanteRoutes);
 router.use('/habilidades', habilidadRoutes);
+router.use('/mensajes', mensajeRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

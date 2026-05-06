@@ -164,12 +164,13 @@ const updateEducacion = async (req, res) => {
       });
     }
 
-    const { institucion, titulo, estado, fecha_fin } = req.body;
+    const { institucion, titulo, estado, fecha_fin, soporte_url } = req.body;
 
     if (institucion !== undefined) educacion.institucion = institucion;
     if (titulo !== undefined) educacion.titulo = titulo;
     if (estado !== undefined) educacion.estado = estado;
     if (fecha_fin !== undefined) educacion.fecha_fin = fecha_fin;
+    if (soporte_url !== undefined) educacion.soporte_url = soporte_url;
 
     await educacion.save();
 

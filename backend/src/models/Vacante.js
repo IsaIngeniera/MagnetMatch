@@ -10,10 +10,7 @@ const Vacante = sequelize.define('Vacante', {
   id_empresa: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'empresa',
-      key: 'id_empresa'
-    }
+    references: { model: 'empresa', key: 'id_empresa' }
   },
   titulo: {
     type: DataTypes.STRING(200),
@@ -34,9 +31,7 @@ const Vacante = sequelize.define('Vacante', {
   modalidad: {
     type: DataTypes.STRING(50),
     allowNull: true,
-    validate: {
-      isIn: [['remoto', 'híbrido', 'presencial']]
-    }
+    validate: { isIn: [['remoto', 'híbrido', 'presencial']] }
   },
   fecha_publicacion: {
     type: DataTypes.DATE,
@@ -47,6 +42,13 @@ const Vacante = sequelize.define('Vacante', {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: true
+  },
+  // ✅ HU-10: porcentaje mínimo requerido (migración ya existe en la BD)
+  porcentaje_minimo: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 0,
+    validate: { min: 0, max: 100 }
   }
 }, {
   tableName: 'vacante',

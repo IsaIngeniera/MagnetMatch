@@ -7,6 +7,8 @@ import { Logo } from '../../complements/logo';
 import { auth, googleProvider } from '../../lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { API_URL } from '@/lib/api';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -15,8 +17,6 @@ export default function Register() {
     email: '',
     password: '',
     telefono: '',
-    expectativa_salarial: '',
-    modalidad_preferida: 'remoto',
   });
   const [mensaje, setMensaje] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,17 +46,30 @@ export default function Register() {
     setTimeout(() => { window.location.href = '/login'; }, 1500);
 
   } catch (err: unknown) {
-  let mensajeError = "Ocurrió un error inesperado";
+      let mensajeError = "Ocurrió un error inesperado al registrarte.";
 
-  if (axios.isAxiosError(err)) {
-    // Si es un error de red o del backend
-    mensajeError = err.response?.data?.error || err.message;
-  } else if (err instanceof Error) {
-    // Si es un error genérico de JavaScript
-    mensajeError = err.message;
-  }
+      if (axios.isAxiosError(err)) {
+        mensajeError = err.response?.data?.error || "Error de conexión con el servidor.";
+      } else if (err && typeof err === 'object' && 'code' in err) {
+        const code = (err as any).code;
+        switch (code) {
+          case 'auth/email-already-in-use':
+            mensajeError = "Este correo electrónico ya está registrado.";
+            break;
+          case 'auth/invalid-email':
+            mensajeError = "El correo electrónico no es válido.";
+            break;
+          case 'auth/weak-password':
+            mensajeError = "La contraseña debe tener al menos 6 caracteres.";
+            break;
+          default:
+            mensajeError = "Hubo un problema al crear tu cuenta.";
+        }
+      } else if (err instanceof Error) {
+        mensajeError = err.message;
+      }
 
-  setMensaje(`❌ ${mensajeError}`);
+      setMensaje(`❌ ${mensajeError}`);
 } finally {
   setLoading(false);
 }
@@ -88,7 +101,12 @@ export default function Register() {
       `}</style>
       
       <div style={{ background: '#fff', padding: '40px', borderRadius: '24px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
-        <Logo showText={true} />
+        <div style={{ position: 'relative' }}>
+          <Link href="/" style={{ position: 'absolute', top: 0, left: 0, color: '#666', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <ArrowLeft size={24} />
+          </Link>
+          <Logo showText={true} />
+        </div>
         <h2 style={{ textAlign: 'center', margin: '20px 0', color: '#333', fontSize: '20px' }}>Únete a MagnetMatch</h2>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -99,16 +117,6 @@ export default function Register() {
         <input name="email" type="email" placeholder="Email" onChange={handleChange} style={inputStyle} />
         <input name="password" type="password" placeholder="Contraseña" onChange={handleChange} style={inputStyle} />
         <input name="telefono" placeholder="Teléfono" onChange={handleChange} style={inputStyle} />
-
-        <label style={{ fontSize: '11px', fontWeight: 700, color: '#666', display: 'block', marginBottom: '5px' }}>MODALIDAD PREFERIDA</label>
-        <select name="modalidad_preferida" onChange={handleChange} style={inputStyle}>
-          <option value="remoto">Remoto</option>
-          <option value="híbrido">Híbrido</option>
-          <option value="presencial">Presencial</option>
-        </select>
-
-        <input name="expectativa_salarial" type="number" placeholder="Expectativa salarial mensual" onChange={handleChange} style={inputStyle} />
-
         <button 
           onClick={handleSubmit} 
           disabled={loading}
@@ -121,7 +129,21 @@ export default function Register() {
           {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
         </button>
 
-        {mensaje && <div style={{ marginTop: '15px', textAlign: 'center', color: mensaje.includes('✅') ? '#16a34a' : '#f87171', fontSize: '14px' }}>{mensaje}</div>}
+        {mensaje && (
+          <div style={{
+            marginTop: '15px', 
+            padding: '12px', 
+            borderRadius: '8px', 
+            background: mensaje.includes('✅') ? '#dcfce7' : '#fee2e2', 
+            color: mensaje.includes('✅') ? '#166534' : '#991b1b', 
+            fontSize: '14px', 
+            textAlign: 'center',
+            border: `1px solid ${mensaje.includes('✅') ? '#bbf7d0' : '#fecaca'}`,
+            fontWeight: 500
+          }}>
+            {mensaje}
+          </div>
+        )}
       </div>
     </div>
   );

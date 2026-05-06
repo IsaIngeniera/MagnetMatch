@@ -8,6 +8,7 @@ const {
   getSkillMatchDetails,
   WEIGHTS 
 } = require('../services/recommendation.service');
+const aiService = require('../services/ai.service');
 
 /**
  * GET /api/aspirantes/:id/recomendaciones
@@ -56,8 +57,11 @@ const {
       limit: limitNum
     });
 
-    if (shouldRefresh || cachedRecs.length === 0) {
-      // 2. Generar nuevas si es necesario
+    if ((aspirante.porcentaje_completitud || 0) < 100) {
+      // Si no tiene el 100%, no calculamos ni retornamos matches
+      rawRecommendations = [];
+    } else if (shouldRefresh || cachedRecs.length === 0) {
+      // 2. Generar nuevas si es necesario (y tiene 100%)
       rawRecommendations = await generateRecommendations(idAspirante, limitNum);
     } else {
       // 3. Formatear las de la caché para que tengan la misma estructura
@@ -367,10 +371,71 @@ const getPostulaciones = async (req, res) => {
 
 
 
+const getConsejoIA = async (req, res) => {
+  try {
+    const aspirante = await Aspirante.findOne({ 
+      where: { firebase_uid: req.usuario.firebase_uid } 
+    });
+    
+    if (!aspirante) {
+      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+    }
+    
+    if (aspirante.porcentaje_completitud < 100) {
+      return res.status(403).json({ success: false, error: 'Perfil incompleto. Llena tu perfil al 100% para obtener consejos.' });
+    }
+
+    // Buscar vacantes recomendadas (cualquier estado, priorizando por score)
+    const cachedRecs = await MatchRecomendacion.findAll({
+      where: { 
+        id_aspirante: aspirante.id_aspirante,
+        estado_postulacion: { [require('sequelize').Op.in]: ['pendiente', 'interesado', 'postulado'] }
+      },
+      include: [{
+        model: Vacante,
+        as: 'vacante',
+        where: { activa: true },
+        include: [{ model: Empresa, as: 'empresa' }]
+      }],
+      order: [['score_compatibilidad', 'DESC']],
+      limit: 3
+    });
+
+    // Si no hay en cache, generar recomendaciones frescas
+    let recsParaConsejo = cachedRecs;
+    if (cachedRecs.length === 0) {
+      const { generateRecommendations } = require('../services/recommendation.service');
+      const fresh = await generateRecommendations(aspirante.id_aspirante, 3);
+      recsParaConsejo = fresh.map(r => ({ vacante: r.vacante }));
+    }
+
+    if (recsParaConsejo.length === 0) {
+      return res.json({ success: true, consejo: "Aún no hay vacantes en el sistema que coincidan con tu perfil. Intenta más tarde." });
+    }
+
+    const topVacantes = recsParaConsejo.map(rec => ({
+      titulo: rec.vacante.titulo,
+      empresa_nombre: rec.vacante.empresa?.nombre,
+      modalidad: rec.vacante.modalidad,
+      salario_min: rec.vacante.salario_min,
+      salario_max: rec.vacante.salario_max,
+      habilidades_requeridas: rec.vacante.habilidades_requeridas
+    }));
+
+    const consejo = await aiService.getConsejoIA(aspirante, topVacantes);
+
+    return res.json({ success: true, consejo });
+
+  } catch (error) {
+    console.error('Error en getConsejoIA:', error);
+    return res.status(500).json({ success: false, error: 'Error interno al generar consejo de IA' });
+  }
+};
+
 module.exports = {
   getRecomendaciones,
   getMatchScore,
   updatePostulacion,
-  getPostulaciones
-
+  getPostulaciones,
+  getConsejoIA
 };

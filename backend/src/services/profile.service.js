@@ -26,10 +26,11 @@ const calculateProfileCompleteness = async (idAspirante) => {
   // Pesos de cada sección (suman 100)
   const WEIGHTS = {
     datos_basicos: 20,
-    experiencia: 25,
-    educacion: 25,
+    experiencia: 20,
+    educacion: 20,
     habilidades: 20,
-    logros: 10
+    logros: 10,
+    cv: 10
   };
 
   const detalles = {
@@ -54,7 +55,9 @@ const calculateProfileCompleteness = async (idAspirante) => {
              data.anios_experiencia !== null;
     }).length >= 3,
     // Al menos 1 logro
-    logros: !!(aspirante.logros && aspirante.logros.length > 0)
+    logros: !!(aspirante.logros && aspirante.logros.length > 0),
+    // CV subido
+    cv: !!aspirante.cv_url
   };
 
   // Sumar solo las secciones completadas
@@ -64,6 +67,7 @@ const calculateProfileCompleteness = async (idAspirante) => {
   if (detalles.educacion)     porcentaje += WEIGHTS.educacion;
   if (detalles.habilidades)   porcentaje += WEIGHTS.habilidades;
   if (detalles.logros)        porcentaje += WEIGHTS.logros;
+  if (detalles.cv)            porcentaje += WEIGHTS.cv;
 
   return { porcentaje, detalles };
 };
@@ -108,6 +112,9 @@ const getRecommendations = (completeness) => {
   }
   if (!completeness.detalles.logros) {
     recommendations.push('Agrega al menos un logro o certificación (+10%)');
+  }
+  if (!completeness.detalles.cv) {
+    recommendations.push('Sube tu Hoja de Vida (CV) en formato PDF en la sección de Perfil (+10%)');
   }
 
   if (recommendations.length === 0) {

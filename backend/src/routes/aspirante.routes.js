@@ -33,14 +33,35 @@ router.get('/me/completitud', verificarToken, aspiranteController.getCompletitud
 
 router.get('/me/mensajes', verificarToken, aspiranteController.getMensajes);
 
-// HU-5: Subir hoja de vida (Usuario actual)
-router.post('/me/upload-cv', verificarToken, upload.single('cv'), aspiranteController.uploadCV);
+// HU-5: Subir hoja de vida — con manejo explícito de errores de multer
+const multer = require('multer');
+router.post(
+  '/me/upload-cv',
+  verificarToken,
+  (req, res, next) => {
+    upload.single('cv')(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        // Error de multer: tamaño excedido, campo incorrecto, etc.
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, error: 'El archivo supera el límite de 5 MB.' });
+        }
+        return res.status(400).json({ success: false, error: `Error de carga: ${err.message}` });
+      } else if (err) {
+        // Error personalizado (fileFilter rechazó el archivo)
+        return res.status(400).json({ success: false, error: err.message });
+      }
+      next();
+    });
+  },
+  aspiranteController.uploadCV
+);
 
 /**
  * GET /api/aspirantes/recomendaciones/me
  * HU-11: Obtener vacantes recomendadas (Usuario actual)
  */
 router.get('/recomendaciones/me', verificarToken, matchController.getRecomendaciones);
+router.get('/recomendaciones/me/consejo-ia', verificarToken, matchController.getConsejoIA);
 
 router.get('/me/postulaciones', verificarToken, matchController.getPostulaciones); // HU-14
 

@@ -1,9 +1,6 @@
 const { Op } = require('sequelize');
 const { Vacante, Empresa, Habilidad, MatchRecomendacion, VacanteHabilidad, Aspirante } = require('../models');
 
-/**
- * GET /api/vacantes
- */
 const getAllVacantes = async (req, res) => {
   try {
     const { modalidad, salario_min, salario_max, search, empresa, page = 1, limit = 10 } = req.query;
@@ -64,9 +61,6 @@ const getAllVacantes = async (req, res) => {
   }
 };
 
-/**
- * GET /api/vacantes/:id
- */
 const getVacanteById = async (req, res) => {
   try {
     const idVacante = parseInt(req.params.id);
@@ -103,12 +97,9 @@ const getVacanteById = async (req, res) => {
   }
 };
 
-/**
- * POST /api/vacantes
- */
 const createVacante = async (req, res) => {
   try {
-    const { id_empresa, titulo, descripcion, salario_min, salario_max, modalidad, habilidades } = req.body;
+    const { id_empresa, titulo, descripcion, salario_min, salario_max, modalidad, habilidades, porcentaje_minimo } = req.body;
     if (!id_empresa || !titulo) return res.status(400).json({ success: false, error: 'id_empresa y titulo son requeridos' });
 
     const empresa = await Empresa.findByPk(id_empresa);
@@ -120,6 +111,7 @@ const createVacante = async (req, res) => {
       salario_min: salario_min || null,
       salario_max: salario_max || null,
       modalidad: modalidad || null,
+      porcentaje_minimo: porcentaje_minimo != null ? parseInt(porcentaje_minimo) : 0,
       activa: true
     });
 
@@ -139,9 +131,6 @@ const createVacante = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/vacantes/:id
- */
 const updateVacante = async (req, res) => {
   try {
     const idVacante = parseInt(req.params.id);
@@ -150,13 +139,14 @@ const updateVacante = async (req, res) => {
     const vacante = await Vacante.findByPk(idVacante);
     if (!vacante) return res.status(404).json({ success: false, error: 'Vacante no encontrada' });
 
-    const { titulo, descripcion, salario_min, salario_max, modalidad, activa } = req.body;
+    const { titulo, descripcion, salario_min, salario_max, modalidad, activa, porcentaje_minimo } = req.body;
     if (titulo !== undefined) vacante.titulo = titulo;
     if (descripcion !== undefined) vacante.descripcion = descripcion;
     if (salario_min !== undefined) vacante.salario_min = salario_min;
     if (salario_max !== undefined) vacante.salario_max = salario_max;
     if (modalidad !== undefined) vacante.modalidad = modalidad;
     if (activa !== undefined) vacante.activa = activa;
+    if (porcentaje_minimo !== undefined) vacante.porcentaje_minimo = parseInt(porcentaje_minimo);
     await vacante.save();
 
     return res.json({ success: true, data: vacante, message: 'Vacante actualizada exitosamente' });
@@ -165,9 +155,6 @@ const updateVacante = async (req, res) => {
   }
 };
 
-/**
- * DELETE /api/vacantes/:id
- */
 const deleteVacante = async (req, res) => {
   try {
     const idVacante = parseInt(req.params.id);
@@ -186,8 +173,86 @@ const deleteVacante = async (req, res) => {
 };
 
 /**
- * GET /api/vacantes/recomendadas
+ * POST /api/vacantes/:id/aplicar
+ * ✅ HU-10: Validar perfil 100% Y match score > 0 Y match >= porcentaje_minimo
  */
+const aplicarVacante = async (req, res) => {
+  try {
+    const firebase_uid = req.usuario.firebase_uid;
+    const idVacante = parseInt(req.params.id);
+
+    if (isNaN(idVacante)) return res.status(400).json({ success: false, error: 'ID de vacante inválido' });
+
+    const [aspirante, vacante] = await Promise.all([
+      Aspirante.findOne({ where: { firebase_uid } }),
+      Vacante.findByPk(idVacante)
+    ]);
+
+    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
+    if (!vacante)   return res.status(404).json({ success: false, error: 'Vacante no encontrada' });
+
+    const porcentajeMinimo = vacante.porcentaje_minimo || 0;
+    const porcentajeAspirante = aspirante.porcentaje_completitud || 0;
+
+    // ✅ Validación 1: perfil al 100%
+    if (porcentajeAspirante < 100) {
+      return res.status(403).json({
+        success: false,
+        error: `Tu perfil está al ${porcentajeAspirante}%. Necesitas el 100% para aplicar.`,
+        codigo: 'PERFIL_INCOMPLETO'
+      });
+    }
+
+    // ✅ Validación 2: buscar el match score guardado para esta vacante
+    const matchGuardado = await MatchRecomendacion.findOne({
+      where: { id_aspirante: aspirante.id_aspirante, id_vacante: idVacante }
+    });
+
+    const matchScore = matchGuardado ? parseFloat(matchGuardado.score_compatibilidad) : 0;
+
+    // ✅ Validación 3: bloquear si match es 0
+    if (matchScore === 0) {
+      return res.status(403).json({
+        success: false,
+        error: 'Tu compatibilidad con esta vacante es del 0%. No cumples los requisitos mínimos de habilidades.',
+        codigo: 'MATCH_CERO'
+      });
+    }
+
+    // ✅ Validación 4: bloquear si match < porcentaje_minimo configurado
+    if (porcentajeMinimo > 0 && matchScore < porcentajeMinimo) {
+      return res.status(403).json({
+        success: false,
+        error: `Tu compatibilidad (${matchScore}%) no alcanza el mínimo requerido por la empresa (${porcentajeMinimo}%).`,
+        codigo: 'MATCH_INSUFICIENTE'
+      });
+    }
+
+    // ✅ Crear o actualizar la postulación
+    const [match, created] = await MatchRecomendacion.findOrCreate({
+      where: { id_aspirante: aspirante.id_aspirante, id_vacante: idVacante },
+      defaults: {
+        score_compatibilidad: matchScore,
+        estado_postulacion: 'postulado',
+        fecha_calculo: new Date()
+      }
+    });
+
+    if (!created) {
+      await match.update({ estado_postulacion: 'postulado' });
+    }
+
+    return res.json({
+      success: true,
+      message: '¡Postulación enviada con éxito!',
+      data: match
+    });
+  } catch (error) {
+    console.error('Error en aplicarVacante:', error);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor' });
+  }
+};
+
 const recomendarVacantes = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
@@ -203,17 +268,14 @@ const recomendarVacantes = async (req, res) => {
       return res.json({ success: true, data: [], message: 'No tienes habilidades registradas aún.' });
     }
 
-    // ✅ FIX DUPLICADOS: Separar la query de habilidades del findAll de vacantes
-    // El include N:M en el mismo findAll genera JOINs que duplican filas
     const vacantes = await Vacante.findAll({
       where: { activa: true },
-      include: [{ model: Empresa, as: 'empresa' }] // Solo empresa, no habilidades
+      include: [{ model: Empresa, as: 'empresa' }]
     });
 
     const habilidadesAspiranteIds = aspirante.habilidades.map(h => h.id_habilidad);
 
     const recomendaciones = await Promise.all(vacantes.map(async (vacante) => {
-      // Traer habilidades de la vacante por separado (evita el JOIN duplicador)
       const habilidadesVacante = await VacanteHabilidad.findAll({
         where: { id_vacante: vacante.id_vacante },
         include: [{ model: Habilidad }]
@@ -223,34 +285,18 @@ const recomendarVacantes = async (req, res) => {
 
       let score = 0;
       if (habilidadesRequeridasIds.length > 0) {
-        const coincidencias = habilidadesRequeridasIds.filter(id =>
-          habilidadesAspiranteIds.includes(id)
-        );
+        const coincidencias = habilidadesRequeridasIds.filter(id => habilidadesAspiranteIds.includes(id));
         score = Math.round((coincidencias.length / habilidadesRequeridasIds.length) * 100);
       } else {
         score = 50;
       }
 
-      // ✅ FIX POSTULACIONES: Usar findOrCreate en lugar de upsert
-      // upsert sobreescribe TODOS los campos incluyendo estado_postulacion,
-      // lo que resetea las postulaciones del usuario a 'pendiente' en cada carga.
-      if (score > 10) {
+      if (score > 0) {
         const [match, created] = await MatchRecomendacion.findOrCreate({
-          where: {
-            id_aspirante: aspirante.id_aspirante,
-            id_vacante: vacante.id_vacante
-          },
-          defaults: {
-            score_compatibilidad: score,
-            estado_postulacion: 'pendiente', // Solo aplica al CREAR, no al actualizar
-            fecha_calculo: new Date()
-          }
+          where: { id_aspirante: aspirante.id_aspirante, id_vacante: vacante.id_vacante },
+          defaults: { score_compatibilidad: score, estado_postulacion: 'pendiente', fecha_calculo: new Date() }
         });
-
-        // Si ya existía, solo actualizar el score — NUNCA tocar estado_postulacion
-        if (!created) {
-          await match.update({ score_compatibilidad: score });
-        }
+        if (!created) await match.update({ score_compatibilidad: score });
       }
 
       return {
@@ -263,7 +309,6 @@ const recomendarVacantes = async (req, res) => {
       };
     }));
 
-    // ✅ FIX DUPLICADOS: Deduplicar por id_vacante como segunda capa de seguridad
     const seen = new Set();
     const deduplicadas = recomendaciones.filter(v => {
       if (seen.has(v.id_vacante)) return false;
@@ -274,7 +319,6 @@ const recomendarVacantes = async (req, res) => {
     deduplicadas.sort((a, b) => b.matchScore - a.matchScore);
 
     return res.json({ success: true, data: deduplicadas });
-
   } catch (error) {
     console.error('Error en recomendarVacantes:', error);
     return res.status(500).json({ success: false, error: 'Error interno del servidor al generar recomendaciones' });
@@ -287,5 +331,6 @@ module.exports = {
   createVacante,
   updateVacante,
   deleteVacante,
-  recomendarVacantes
+  recomendarVacantes,
+  aplicarVacante
 };

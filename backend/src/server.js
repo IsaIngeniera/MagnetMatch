@@ -25,7 +25,7 @@ app.use(
 );
 
 // Servir archivos estáticos
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // CORS configuration
 app.use(cors({

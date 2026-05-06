@@ -102,7 +102,7 @@ export default function Home() {
           fontSize: '13px',
           marginTop: '50px'
         }}>
-          © 2025 MagnetMatch · Todos los derechos reservados
+          © 2026 MagnetMatch · Todos los derechos reservados
         </p>
       </div>
     </div>

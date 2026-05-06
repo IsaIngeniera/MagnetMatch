@@ -3,12 +3,13 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCdonEMmnFyK9QVaxw-kUZFtVB9p2_BLsA",
-  authDomain: "magnetmatch1.firebaseapp.com",
-  projectId: "magnetmatch1",
-  storageBucket: "magnetmatch1.firebasestorage.app",
-  messagingSenderId: "466440480859",
-  appId: "1:466440480859:web:9335458c89470c3f6f377e"
+  apiKey: "AIzaSyCfMUnIPVbppsuKMo3VZOTEnO7_2mGOnG8",
+  authDomain: "magnetmatch-b12cf.firebaseapp.com",
+  projectId: "magnetmatch-b12cf",
+  storageBucket: "magnetmatch-b12cf.firebasestorage.app",
+  messagingSenderId: "933418738934",
+  appId: "1:933418738934:web:ff471eb43567ac5f2638d7",
+  measurementId: "G-E8YBQ4B2RG"
 };
 
 

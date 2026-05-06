@@ -72,6 +72,14 @@ const seedDatabase = async () => {
       { nombre: 'Gestión del tiempo', categoria: 'Habilidades Blandas' },
       { nombre: 'Metodologías Ágiles', categoria: 'Metodologías' },
       { nombre: 'Scrum', categoria: 'Metodologías' },
+
+      // Otras Áreas
+      { nombre: 'Marketing Digital', categoria: 'Marketing' },
+      { nombre: 'SEO/SEM', categoria: 'Marketing' },
+      { nombre: 'Adobe Creative Suite', categoria: 'Diseño' },
+      { nombre: 'UI/UX', categoria: 'Diseño' },
+      { nombre: 'Ventas B2B', categoria: 'Ventas' },
+      { nombre: 'Atención al Cliente', categoria: 'Ventas' },
     ], { ignoreDuplicates: true });
 
     console.log(`  Created/found ${habilidades.length} habilidades`);
@@ -110,6 +118,24 @@ const seedDatabase = async () => {
         sector: 'E-commerce', 
         sitio_web: 'https://globalretail.example.com',
         descripcion: 'Soluciones tecnológicas para comercio electrónico'
+      },
+      { 
+        nombre: 'Creative Minds Agency', 
+        sector: 'Publicidad y Diseño', 
+        sitio_web: 'https://creativeminds.example.com',
+        descripcion: 'Agencia de publicidad ganadora de múltiples premios internacionales.'
+      },
+      { 
+        nombre: 'MarketBoost', 
+        sector: 'Marketing', 
+        sitio_web: 'https://marketboost.example.com',
+        descripcion: 'Consultoría experta en crecimiento y posicionamiento de marca.'
+      },
+      { 
+        nombre: 'SalesForce Latam', 
+        sector: 'Comercial', 
+        sitio_web: 'https://salesforcelatam.example.com',
+        descripcion: 'Líderes en expansión y estrategias de ventas B2B.'
       }
     ], { ignoreDuplicates: true });
 
@@ -120,14 +146,11 @@ const seedDatabase = async () => {
     // =============================================
     console.log('\nSeeding vacantes...');
 
-    const vacantesExistentes = await Vacante.count();
-    let vacantes;
+    // Limpiar vacantes para recrearlas con las nuevas de otras áreas
+    await VacanteHabilidad.destroy({ where: {} });
+    await Vacante.destroy({ where: {} });
 
-    if (vacantesExistentes > 0) {
-      console.log(`  Ya existen ${vacantesExistentes} vacantes. Omitiendo creación...`);
-      vacantes = await Vacante.findAll({ order: [['id_vacante', 'ASC']] });
-    } else {
-      vacantes = await Vacante.bulkCreate([
+    let vacantes = await Vacante.bulkCreate([
         {
           id_empresa: empresas[0].id_empresa,
           titulo: 'Senior Full Stack Developer',
@@ -181,11 +204,38 @@ const seedDatabase = async () => {
           salario_max: 150000,
           modalidad: 'híbrido',
           activa: true
+        },
+        // Nuevas vacantes de otras áreas
+        {
+          id_empresa: empresas[5].id_empresa,
+          titulo: 'Diseñador UI/UX Senior',
+          descripcion: 'Buscamos un diseñador experto en interfaces de usuario y experiencia de usuario para liderar el rediseño de nuestra plataforma principal.',
+          salario_min: 60000,
+          salario_max: 95000,
+          modalidad: 'remoto',
+          activa: true
+        },
+        {
+          id_empresa: empresas[6].id_empresa,
+          titulo: 'Especialista en Marketing Digital',
+          descripcion: 'Responsable de la estrategia digital, campañas de SEO/SEM y redes sociales para aumentar la presencia de marca.',
+          salario_min: 45000,
+          salario_max: 75000,
+          modalidad: 'híbrido',
+          activa: true
+        },
+        {
+          id_empresa: empresas[7].id_empresa,
+          titulo: 'Ejecutivo de Ventas B2B',
+          descripcion: 'Buscamos un cerrador de ventas para gestionar cuentas corporativas clave y expandir nuestro mercado en la región.',
+          salario_min: 50000,
+          salario_max: 120000,
+          modalidad: 'presencial',
+          activa: true
         }
       ], { ignoreDuplicates: true });
 
       console.log(`  Created ${vacantes.length} vacantes`);
-    }
 
     // =============================================
     // Seed Vacante Habilidades (Required Skills)
@@ -231,6 +281,21 @@ const seedDatabase = async () => {
       { id_vacante: vacantes[5].id_vacante, id_habilidad: habMap['React'], es_obligatoria: true },
       { id_vacante: vacantes[5].id_vacante, id_habilidad: habMap['Liderazgo'], es_obligatoria: true },
       { id_vacante: vacantes[5].id_vacante, id_habilidad: habMap['Metodologías Ágiles'], es_obligatoria: true },
+      
+      // Diseñador UI/UX Senior
+      { id_vacante: vacantes[6]?.id_vacante || 7, id_habilidad: habMap['UI/UX'], es_obligatoria: true },
+      { id_vacante: vacantes[6]?.id_vacante || 7, id_habilidad: habMap['Adobe Creative Suite'], es_obligatoria: true },
+      { id_vacante: vacantes[6]?.id_vacante || 7, id_habilidad: habMap['Trabajo en equipo'], es_obligatoria: false },
+
+      // Especialista en Marketing Digital
+      { id_vacante: vacantes[7]?.id_vacante || 8, id_habilidad: habMap['Marketing Digital'], es_obligatoria: true },
+      { id_vacante: vacantes[7]?.id_vacante || 8, id_habilidad: habMap['SEO/SEM'], es_obligatoria: true },
+      { id_vacante: vacantes[7]?.id_vacante || 8, id_habilidad: habMap['Comunicación efectiva'], es_obligatoria: true },
+
+      // Ejecutivo de Ventas B2B
+      { id_vacante: vacantes[8]?.id_vacante || 9, id_habilidad: habMap['Ventas B2B'], es_obligatoria: true },
+      { id_vacante: vacantes[8]?.id_vacante || 9, id_habilidad: habMap['Atención al Cliente'], es_obligatoria: true },
+      { id_vacante: vacantes[8]?.id_vacante || 9, id_habilidad: habMap['Resolución de problemas'], es_obligatoria: false },
     ], { ignoreDuplicates: true });
 
     console.log('  Created/found vacante-habilidad relationships');

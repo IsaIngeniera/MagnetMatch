@@ -1,11 +1,6 @@
 const { 
-  Aspirante, 
-  Experiencia, 
-  Educacion, 
-  Habilidad, 
-  AspiranteHabilidad, 
-  Logro, 
-  Mensaje 
+  Aspirante, Experiencia, Educacion, Habilidad,
+  AspiranteHabilidad, Logro, Mensaje 
 } = require('../models');
 const { 
   updateProfileCompleteness,
@@ -13,80 +8,46 @@ const {
   getRecommendations
 } = require('../services/profile.service');
 const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
 
-/**
- * POST /api/aspirantes
- * HU-01: Registro de nuevo aspirante
- */
 const createAspirante = async (req, res) => {
   try {
     const { 
-      nombres, 
-      apellidos, 
-      email, 
-      password, 
-      telefono, 
-      firebase_uid,
-      expectativa_salarial,
-      modalidad_preferida 
+      nombres, apellidos, email, password, telefono,
+      firebase_uid 
     } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email y contraseña son obligatorios' 
-      });
+      return res.status(400).json({ success: false, error: 'Email y contraseña son obligatorios' });
     }
 
     const existe = await Aspirante.findOne({ where: { email } });
     if (existe) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'El correo electrónico ya está registrado en la base de datos' 
-      });
+      return res.status(400).json({ success: false, error: 'El correo electrónico ya está registrado en la base de datos' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // ✅ porcentaje_completitud arranca en 0 por el defaultValue del modelo.
-    //    NO se calcula aquí porque el usuario recién creado no tiene
-    //    experiencia, educación, habilidades ni logros todavía.
     const nuevoAspirante = await Aspirante.create({
-      nombres,
-      apellidos,
-      email,
+      nombres, apellidos, email,
       password: hashedPassword,
       telefono: telefono || null,
-      expectativa_salarial: expectativa_salarial || null,
-      modalidad_preferida: modalidad_preferida || null,
-      firebase_uid: firebase_uid,
+      firebase_uid,
       fecha_registro: new Date()
     });
 
     return res.status(201).json({
       success: true,
       message: 'Perfil de aspirante creado exitosamente',
-      data: {
-        id: nuevoAspirante.id_aspirante,
-        email: nuevoAspirante.email
-      }
+      data: { id: nuevoAspirante.id_aspirante, email: nuevoAspirante.email }
     });
-
   } catch (error) {
     console.error('Error en createAspirante:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Error interno al crear el perfil',
-      detalles: error.message
-    });
+    return res.status(500).json({ success: false, error: 'Error interno al crear el perfil', detalles: error.message });
   }
 };
 
-/**
- * GET /api/aspirantes/perfil/me
- * HU-04: Ver perfil completo
- */
 const getAspiranteById = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
@@ -100,9 +61,7 @@ const getAspiranteById = async (req, res) => {
       ]
     });
 
-    if (!aspirante) {
-      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
-    }
+    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
 
     const habilidades = await AspiranteHabilidad.findAll({
       where: { id_aspirante: aspirante.id_aspirante },
@@ -128,23 +87,15 @@ const getAspiranteById = async (req, res) => {
   }
 };
 
-/**
- * GET /api/aspirantes/completitud
- * ✅ FIX: ahora usa calculateProfileCompleteness del service, no getProgreso()
- */
 const getCompletitud = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
     const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
-    if (!aspirante) {
-      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
-    }
+    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
 
-    // ✅ Usar el servicio real con pesos, no el método simple del modelo
     const completeness = await calculateProfileCompleteness(aspirante.id_aspirante);
 
-    // Sincronizar el porcentaje en la BD también
     await Aspirante.update(
       { porcentaje_completitud: completeness.porcentaje },
       { where: { id_aspirante: aspirante.id_aspirante } }
@@ -166,21 +117,19 @@ const getCompletitud = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/aspirantes/perfil
- */
 const updateAspirante = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
     const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
-    if (!aspirante) {
-      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
-    }
+    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
 
+    // ✅ HU-Actualizar Perfil: se agregaron 'descripcion' y 'ubicacion'
     const camposPermitidos = [
       'nombres', 'apellidos', 'telefono',
-      'expectativa_salarial', 'modalidad_preferida', 'descripcion', 'foto_url'
+      'expectativa_salarial', 'modalidad_preferida',
+      'descripcion', 'ubicacion',
+      'foto_url', 'cv_url'
     ];
     const datosAActualizar = {};
     Object.keys(req.body).forEach(key => {
@@ -188,8 +137,6 @@ const updateAspirante = async (req, res) => {
     });
 
     await aspirante.update(datosAActualizar);
-
-    // Recalcular y guardar el porcentaje real después de actualizar
     await updateProfileCompleteness(aspirante.id_aspirante);
 
     const actualizado = await Aspirante.findByPk(aspirante.id_aspirante);
@@ -199,9 +146,6 @@ const updateAspirante = async (req, res) => {
   }
 };
 
-/**
- * DELETE /api/aspirantes/perfil
- */
 const deleteAspirante = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
@@ -212,9 +156,6 @@ const deleteAspirante = async (req, res) => {
   }
 };
 
-/**
- * GET /api/aspirantes/mensajes
- */
 const getMensajes = async (req, res) => {
   try {
     const firebase_uid = req.usuario.firebase_uid;
@@ -223,7 +164,12 @@ const getMensajes = async (req, res) => {
     if (!aspirante) return res.status(404).json({ success: false, error: 'No encontrado' });
 
     const mensajes = await Mensaje.findAll({
-      where: { id_receptor: aspirante.id_aspirante },
+      where: {
+        [Op.or]: [
+          { id_receptor: aspirante.id_aspirante },
+          { id_emisor: aspirante.id_aspirante }
+        ]
+      },
       order: [['fecha_envio', 'DESC']]
     });
 
@@ -233,24 +179,24 @@ const getMensajes = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/aspirantes/mensajes/:id_mensaje/leido
- */
 const marcarMensajeLeido = async (req, res) => {
   try {
     const { id_mensaje } = req.params;
     const firebase_uid = req.usuario.firebase_uid;
     const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
-    const mensaje = await Mensaje.findOne({ 
-      where: { id_mensaje, id_receptor: aspirante.id_aspirante } 
-    });
+    const mensaje = await Mensaje.findOne({ where: { id_mensaje, id_receptor: aspirante.id_aspirante } });
 
-    if (!mensaje) return res.status(404).json({ success: false, error: 'Mensaje no encontrado' });
+    if (!mensaje) {
+      const enviadoPorMi = await Mensaje.findOne({ where: { id_mensaje, id_emisor: aspirante.id_aspirante } });
+      if (enviadoPorMi) {
+        return res.json({ success: true, message: 'El mensaje fue enviado por el usuario, no se requiere marcar como leído.' });
+      }
+      return res.status(404).json({ success: false, error: 'Mensaje no encontrado' });
+    }
 
     mensaje.leido = true;
     await mensaje.save();
-
     res.json({ success: true, message: 'Mensaje marcado como leído' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -266,24 +212,16 @@ const getAllAspirantes = async (req, res) => {
   }
 };
 
-/**
- * POST /api/aspirantes/me/upload-cv
- */
 const uploadCV = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No se recibió ningún archivo.' 
-      });
+      return res.status(400).json({ success: false, error: 'No se recibió ningún archivo.' });
     }
 
     const firebase_uid = req.usuario.firebase_uid;
     const aspirante = await Aspirante.findOne({ where: { firebase_uid } });
 
-    if (!aspirante) {
-      return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
-    }
+    if (!aspirante) return res.status(404).json({ success: false, error: 'Aspirante no encontrado' });
 
     const urlArchivo = `/uploads/cvs/${req.file.filename}`;
     await aspirante.update({ cv_url: urlArchivo });
@@ -292,10 +230,7 @@ const uploadCV = async (req, res) => {
     return res.json({
       success: true,
       message: '¡CV subido y guardado con éxito!',
-      data: {
-        nombre_archivo: req.file.originalname,
-        ruta: urlArchivo
-      }
+      data: { nombre_archivo: req.file.originalname, ruta: urlArchivo }
     });
   } catch (error) {
     console.error('Error en uploadCV:', error);
@@ -304,13 +239,7 @@ const uploadCV = async (req, res) => {
 };
 
 module.exports = {
-  createAspirante,
-  getAspiranteById,
-  updateAspirante,
-  getCompletitud,
-  deleteAspirante,
-  getMensajes,
-  marcarMensajeLeido,
-  uploadCV,
-  getAllAspirantes
+  createAspirante, getAspiranteById, updateAspirante,
+  getCompletitud, deleteAspirante, getMensajes,
+  marcarMensajeLeido, uploadCV, getAllAspirantes
 };

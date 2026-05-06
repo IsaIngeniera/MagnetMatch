@@ -6,6 +6,8 @@ import { auth, googleProvider } from '../../lib/firebase';
 import { API_URL } from '@/lib/api';
 import { useRouter } from 'next/navigation'; 
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -36,9 +38,26 @@ export default function Login() {
       }
     } catch (err: unknown) {
       console.error(err);
-      let mensajeError = "Error al iniciar sesión";
+      let mensajeError = "Error al iniciar sesión. Por favor intenta de nuevo.";
       if (axios.isAxiosError(err)) {
-        mensajeError = err.response?.data?.error || err.message;
+        mensajeError = err.response?.data?.error || "Error de conexión con el servidor.";
+      } else if (err && typeof err === 'object' && 'code' in err) {
+        const code = (err as any).code;
+        switch (code) {
+          case 'auth/invalid-email':
+            mensajeError = "El correo electrónico no es válido.";
+            break;
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            mensajeError = "Correo o contraseña incorrectos.";
+            break;
+          case 'auth/too-many-requests':
+            mensajeError = "Demasiados intentos fallidos. Intenta más tarde.";
+            break;
+          default:
+            mensajeError = "Hubo un problema con la autenticación.";
+        }
       } else if (err instanceof Error) {
         mensajeError = err.message;
       }
@@ -87,7 +106,12 @@ export default function Login() {
     <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{ background: '#ffffff', border: '1px solid #e5e5e5', borderRadius: '24px', padding: '50px 40px', width: '100%', maxWidth: '420px', boxShadow: '0 25px 50px rgba(0,0,0,0.08)' }}>
         
-        <Logo showText={true} />
+        <div style={{ position: 'relative', marginBottom: '20px' }}>
+          <Link href="/" style={{ position: 'absolute', top: '10px', left: 0, color: '#666', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <ArrowLeft size={24} />
+          </Link>
+          <Logo showText={true} />
+        </div>
 
         <button
           onClick={handleGoogleLogin}
@@ -136,7 +160,17 @@ export default function Login() {
         </button>
 
         {mensaje && (
-          <div style={{ textAlign: 'center', marginTop: '20px', color: mensaje.includes('✅') ? '#16a34a' : '#f87171', fontSize: '14px' }}>
+          <div style={{
+            marginTop: '20px', 
+            padding: '12px', 
+            borderRadius: '8px', 
+            background: mensaje.includes('✅') ? '#dcfce7' : '#fee2e2', 
+            color: mensaje.includes('✅') ? '#166534' : '#991b1b', 
+            fontSize: '14px', 
+            textAlign: 'center',
+            border: `1px solid ${mensaje.includes('✅') ? '#bbf7d0' : '#fecaca'}`,
+            fontWeight: 500
+          }}>
             {mensaje}
           </div>
         )}

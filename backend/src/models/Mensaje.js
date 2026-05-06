@@ -7,6 +7,10 @@ const Mensaje = sequelize.define('Mensaje', {
         primaryKey: true,
         autoIncrement: true
     },
+    id_emisor: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+    },
     id_receptor: {
         type: DataTypes.INTEGER,
         allowNull: false

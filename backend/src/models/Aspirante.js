@@ -16,9 +16,7 @@ const Aspirante = sequelize.define('Aspirante', {
     type: DataTypes.STRING(255),
     allowNull: false,
     unique: true,
-    validate: {
-      isEmail: true
-    }
+    validate: { isEmail: true }
   },
   password: {
     type: DataTypes.STRING(255),
@@ -43,35 +41,36 @@ const Aspirante = sequelize.define('Aspirante', {
   modalidad_preferida: {
     type: DataTypes.STRING(50),
     allowNull: true,
-    validate: {
-      isIn: [['remoto', 'híbrido', 'presencial']]
-    }
+    validate: { isIn: [['remoto', 'híbrido', 'presencial']] }
   },
   porcentaje_completitud: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0, // ✅ Los nuevos usuarios empiezan en 0%
-    validate: {
-      min: 0,
-      max: 100
-    }
+    defaultValue: 0,
+    validate: { min: 0, max: 100 }
   },
   fecha_registro: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  cv_url: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  // ✅ HU-Actualizar Perfil: nuevos campos (migración ya existe en la BD)
+  descripcion: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  ubicacion: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   }
 }, {
   tableName: 'aspirante',
   timestamps: false,
   freezeTableName: true
 });
-
-// ❌ ELIMINADO: getProgreso() — solo revisaba 4 campos y devolvía hasta 100%
-//    ignorando experiencia, educación, habilidades y logros.
-//    El cálculo correcto está en profile.service.js → calculateProfileCompleteness()
-
-// ❌ ELIMINADO: beforeSave hook — sobreescribía porcentaje_completitud con
-//    getProgreso() en cada guardado, causando que usuarios nuevos aparecieran al 100%.
 
 module.exports = Aspirante;

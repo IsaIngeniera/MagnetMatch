@@ -1,52 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const { verificarToken } = require('../middleware/authMiddleware');
+const {
+  getAllVacantes,
+  getVacanteById,
+  createVacante,
+  updateVacante,
+  deleteVacante,
+  recomendarVacantes,
+  aplicarVacante    // ✅ HU-10
+} = require('../controllers/vacante.controller');
 
-const vacanteController = require('../controllers/vacante.controller');
+// GET /api/vacantes/recomendadas  ← debe ir ANTES de /:id
+router.get('/recomendadas', verificarToken, recomendarVacantes);
 
-const {verificarToken} = require('../middleware/authMiddleware');
-/**
- * GET /api/vacantes
- * HU-09: Lista todas las vacantes activas
- * 
- * Query params:
- * - modalidad: Filter by work modality (remoto, híbrido, presencial)
- * - salario_min: Minimum salary filter
- * - salario_max: Maximum salary filter
- * - search: Search in title and description
- * - empresa: Filter by company ID
- * - page: Page number for pagination (default 1)
- * - limit: Results per page (default 10)
- */
-router.get('/', vacanteController.getAllVacantes);
+// ✅ HU-10: Aplicar a vacante con validación de porcentaje mínimo
+router.post('/:id/aplicar', verificarToken, aplicarVacante);
 
-// Esta ruta llamará a la función de recomendación que usa el algoritmo
-router.get('/recomendadas', verificarToken, vacanteController.recomendarVacantes);
-
-
-/**
- * GET /api/vacantes/:id
- * HU-10: Ver detalle de una vacante específica
- */
-router.get('/:id', vacanteController.getVacanteById);
-
-
-
-/**
- * POST /api/vacantes
- * Create a new job posting
- */
-router.post('/', verificarToken, vacanteController.createVacante);
-
-/**
- * PUT /api/vacantes/:id
- * Update a job posting
- */
-router.put('/:id', verificarToken, vacanteController.updateVacante);
-
-/**
- * DELETE /api/vacantes/:id
- * Delete (deactivate) a job posting
- */
-router.delete('/:id', verificarToken, vacanteController.deleteVacante);
+router.get('/',     getAllVacantes);
+router.get('/:id',  getVacanteById);
+router.post('/',    createVacante);
+router.put('/:id',  updateVacante);
+router.delete('/:id', deleteVacante);
 
 module.exports = router;

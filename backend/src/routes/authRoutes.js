@@ -35,9 +35,7 @@ router.post('/google-login', async (req, res) => {
         password: 'GOOGLE_AUTH_USER',
         porcentaje_completitud: 10,
         fecha_registro: new Date(),
-        telefono: '00000000', // Valor por defecto
-        modalidad_preferida: 'remoto',
-        expectativa_salarial: 0
+        telefono: '00000000' // Valor por defecto
       });
     }
 

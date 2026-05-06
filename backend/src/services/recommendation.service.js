@@ -12,11 +12,14 @@ const {
 } = require('../models');
 const profileService = require('./profile.service');
 
+const aiService = require('./ai.service');
+
 const WEIGHTS = {
-  habilidades: 0.40,
-  experiencia: 0.25,
-  salario: 0.20,
-  modalidad: 0.15
+  habilidades: 0.30,
+  experiencia: 0.20,
+  texto_ia: 0.30,
+  salario: 0.10,
+  ubicacion: 0.10
 };
 
 const calculateMatchScore = async (idAspirante, idVacante) => {
@@ -34,13 +37,15 @@ const calculateMatchScore = async (idAspirante, idVacante) => {
   const skillsScore = calculateSkillsScore(aspiranteSkills, vacanteSkills);
   const experienceScore = calculateExperienceScore(aspirante.experiencias || []);
   const salaryScore = calculateSalaryScore(aspirante.expectativa_salarial, vacante.salario_min, vacante.salario_max);
-  const modalityScore = calculateModalityScore(aspirante.modalidad_preferida, vacante.modalidad);
+  const locationScore = calculateLocationScore(aspirante.ubicacion, vacante.modalidad);
+  const aiScore = await aiService.getSemanticMatchScore(aspirante.descripcion, vacante.descripcion, aspirante.ubicacion);
 
   const totalScore =
     skillsScore * WEIGHTS.habilidades +
     experienceScore * WEIGHTS.experiencia +
+    aiScore * WEIGHTS.texto_ia +
     salaryScore * WEIGHTS.salario +
-    modalityScore * WEIGHTS.modalidad;
+    locationScore * WEIGHTS.ubicacion;
 
   return Math.round(totalScore * 100) / 100;
 };
@@ -90,12 +95,17 @@ const calculateSalaryScore = (expectativa, salarioMin, salarioMax) => {
   return expNum < minNum ? 80 : 40;
 };
 
-const calculateModalityScore = (preferencia, vacanteModalidad) => {
-  if (!preferencia || !vacanteModalidad) return 50;
-  const pref = preferencia.toLowerCase();
-  const vac = vacanteModalidad.toLowerCase();
-  if (pref === vac) return 100;
-  if (pref === 'híbrido' || vac === 'híbrido') return 70;
+const calculateLocationScore = (aspiranteUbicacion, vacanteModalidad) => {
+  if (!aspiranteUbicacion || !vacanteModalidad) return 50;
+  const ubicacion = aspiranteUbicacion.toLowerCase();
+  const vacanteMod = vacanteModalidad.toLowerCase();
+  
+  if (vacanteMod === 'remoto') return 100; // Remoto es 100% compatible con cualquier ubicación
+  
+  // Si la vacante es presencial o híbrida, la IA ya penalizará si la ubicación no coincide,
+  // pero podemos hacer una lógica simple aquí si la modalidad la incluye en el texto:
+  if (ubicacion.includes(vacanteMod) || vacanteMod.includes('híbrido')) return 70;
+  
   return 30;
 };
 

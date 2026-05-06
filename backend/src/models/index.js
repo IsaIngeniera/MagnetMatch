@@ -126,8 +126,11 @@ MatchRecomendacion.belongsTo(Vacante, {
 });
 
 //Mensajes association
-Aspirante.hasMany(Mensaje, { foreignKey: 'id_receptor', as: 'mensajes' });
+Aspirante.hasMany(Mensaje, { foreignKey: 'id_receptor', as: 'mensajesRecibidos' });
 Mensaje.belongsTo(Aspirante, { foreignKey: 'id_receptor', as: 'receptor' });
+
+Aspirante.hasMany(Mensaje, { foreignKey: 'id_emisor', as: 'mensajesEnviados' });
+Mensaje.belongsTo(Aspirante, { foreignKey: 'id_emisor', as: 'emisor' });
 
 module.exports = {
   sequelize,
